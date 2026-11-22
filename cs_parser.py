@@ -1,0 +1,890 @@
+#!/usr/bin/env python3
+"""
+CS2 demo parser -> JSON per la dashboard "CS Coach".
+
+Uso:
+    pip install demoparser2 pandas
+    python cs_parser.py --steamid IL_TUO_STEAMID64 --out cs_data.json  demo1.dem demo2.dem ...
+
+Il JSON prodotto si carica nella dashboard con il pulsante "Importa dati".
+Si possono unire più esecuzioni: la dashboard riconosce le partite già presenti (campo id).
+"""
+import argparse
+import hashlib
+import json
+import math
+import os
+import sys
+from collections import defaultdict
+
+import pandas as pd
+from demoparser2 import DemoParser
+
+TICKRATE = 64
+TRADE_WINDOW = int(5 * TICKRATE)        # 5 secondi per le trade
+GRENADES = {
+    "weapon_smokegrenade": "smoke",
+    "weapon_flashbang": "flash",
+    "weapon_hegrenade": "he",
+    "weapon_molotov": "molotov",
+    "weapon_incgrenade": "molotov",
+}
+GRENADE_DMG = {"hegrenade": "he", "inferno": "molotov"}
+HIT_GROUPS = {"head": "Testa", "neck": "Collo", "chest": "Petto", "stomach": "Stomaco", "left_arm": "Braccia", "right_arm": "Braccia", "left_leg": "Gambe", "right_leg": "Gambe", "generic": "Altro"}
+
+
+WEAPON_ALIAS = {"m4a1_silencer": "m4a1", "usp_silencer": "hkp2000", "knife_t": "knife", "incgrenade": "molotov"}
+
+
+def wn(w):
+    w = str(w or "").replace("weapon_", "")
+    return WEAPON_ALIAS.get(w, w)
+
+
+def nz(v, default=0):
+    if v is None:
+        return default
+    try:
+        if isinstance(v, float) and math.isnan(v):
+            return default
+    except Exception:
+        pass
+    return v
+
+
+def sid(v):
+    """steamid come stringa ('' se mancante / mondo)."""
+    v = nz(v, 0)
+    try:
+        v = int(v)
+    except Exception:
+        return ""
+    return str(v) if v else ""
+
+
+def rnd(v, n=1):
+    return round(float(v), n)
+
+
+def side_name(team_num):
+    return {2: "T", 3: "CT"}.get(int(team_num), "?")
+
+
+def parse_demo(path, me_id):
+    p = DemoParser(path)
+    header = p.parse_header()
+    map_name = header.get("map_name", "unknown")
+
+    # ---------------------------------------------------------------- round structure
+    rs = p.parse_event("round_start").sort_values("tick")
+    fe = p.parse_event("round_freeze_end").sort_values("tick")
+    re_ = p.parse_event("round_end").sort_values("tick")
+    re_ = re_[re_["round"].notna()]
+    rs = rs.drop_duplicates("round")
+    start_tick = dict(zip(rs["round"].astype(int), rs["tick"].astype(int)))
+    end_tick = dict(zip(re_["round"].astype(int), re_["tick"].astype(int)))
+    winner = dict(zip(re_["round"].astype(int), re_["winner"]))
+    reason = dict(zip(re_["round"].astype(int), re_["reason"]))
+    rounds = sorted(r for r in end_tick if r in start_tick)
+    # freeze_end per round: primo freeze_end dopo round_start
+    fe_ticks = sorted(fe["tick"].astype(int).tolist())
+    freeze_end = {}
+    for r in rounds:
+        cand = [t for t in fe_ticks if t >= start_tick[r]]
+        freeze_end[r] = cand[0] if cand else start_tick[r]
+
+    starts = [start_tick[r] for r in rounds]
+
+    def round_of(tick):
+        # un evento dopo il round_end (es. kill dopo il defuse) conta per quel round,
+        # come nel tabellone di Valve: vale fino all'inizio del round successivo
+        for i, r in enumerate(rounds):
+            nxt = starts[i + 1] if i + 1 < len(rounds) else 10 ** 12
+            if starts[i] <= tick < nxt:
+                return r
+        return None
+
+    # ---------------------------------------------------------------- team / economia per round
+    tdf = p.parse_ticks(["team_num", "current_equip_value", "balance"], ticks=[freeze_end[r] for r in rounds])
+    tdf["steamid"] = tdf["steamid"].apply(sid)
+    team_of = defaultdict(dict)     # round -> sid -> team_num
+    equip = defaultdict(dict)
+    money = defaultdict(dict)
+    names = {}
+    tick_to_round = {freeze_end[r]: r for r in rounds}
+    for row in tdf.itertuples(index=False):
+        r = tick_to_round.get(int(row.tick))
+        if r is None or not row.steamid or int(nz(row.team_num)) not in (2, 3):
+            continue
+        team_of[r][row.steamid] = int(row.team_num)
+        equip[r][row.steamid] = int(nz(row.current_equip_value))
+        money[r][row.steamid] = int(nz(row.balance))
+        names[row.steamid] = row.name
+    if me_id not in names:
+        raise SystemExit(f"[{os.path.basename(path)}] SteamID {me_id} non presente nella demo.")
+
+    # ---------------------------------------------------------------- eventi
+    deaths = p.parse_event("player_death", player=["X", "Y", "Z"])
+    hurts = p.parse_event("player_hurt")
+    blinds = p.parse_event("player_blind")
+    fires = p.parse_event("weapon_fire")
+    det = {
+        "smoke": p.parse_event("smokegrenade_detonate"),
+        "flash": p.parse_event("flashbang_detonate"),
+        "he": p.parse_event("hegrenade_detonate"),
+        "molotov": p.parse_event("inferno_startburn"),
+    }
+    plants = p.parse_event("bomb_planted")
+    defuses = p.parse_event("bomb_defused")
+
+    for df in (deaths, hurts, blinds, fires):
+        for col in ("attacker_steamid", "user_steamid", "assister_steamid"):
+            if col in df.columns:
+                df[col] = df[col].apply(sid)
+    for d in det.values():
+        d["user_steamid"] = d["user_steamid"].apply(sid)
+    plants["user_steamid"] = plants["user_steamid"].apply(sid)
+    defuses["user_steamid"] = defuses["user_steamid"].apply(sid)
+
+    deaths = deaths.sort_values("tick")
+    deaths["round"] = deaths["tick"].apply(round_of)
+    deaths = deaths[deaths["round"].notna()].copy()
+    deaths["round"] = deaths["round"].astype(int)
+    hurts["round"] = hurts["tick"].apply(round_of)
+    hurts = hurts[hurts["round"].notna()].copy()
+    hurts["round"] = hurts["round"].astype(int)
+    blinds["round"] = blinds["tick"].apply(round_of)
+    blinds = blinds[blinds["round"].notna()].copy()
+    blinds["round"] = blinds["round"].astype(int)
+    fires["round"] = fires["tick"].apply(round_of)
+    fires = fires[fires["round"].notna()].copy()
+    fires["round"] = fires["round"].astype(int)
+
+    players = sorted(names)
+
+    # struttura statistiche per giocatore
+    def blank():
+        return defaultdict(float)
+    S = {s: blank() for s in players}
+    side_stats = {s: {"CT": blank(), "T": blank()} for s in players}
+    rounds_played = defaultdict(int)
+    per_round_me = []
+
+    # ---------------------------------------------------------------- trade detection
+    death_rows = list(deaths.itertuples(index=False))
+    by_round_deaths = defaultdict(list)
+    for d in death_rows:
+        by_round_deaths[d.round].append(d)
+
+    traded_victims = set()       # (round, tick, victim)
+    trade_kills = defaultdict(int)
+    for r, lst in by_round_deaths.items():
+        for i, d in enumerate(lst):
+            v, k = d.user_steamid, d.attacker_steamid
+            if not k or k == v:
+                continue
+            tv = team_of[r].get(v)
+            tk = team_of[r].get(k)
+            if tv is None or tk is None or tv == tk:
+                continue
+            for d2 in lst[i + 1:]:
+                if d2.tick - d.tick > TRADE_WINDOW:
+                    break
+                if d2.user_steamid == k and d2.attacker_steamid and team_of[r].get(d2.attacker_steamid) == tv:
+                    traded_victims.add((r, int(d.tick), v))
+                    trade_kills[d2.attacker_steamid] += 1
+                    S[d2.attacker_steamid]["trade_kills"] += 1
+                    side_stats[d2.attacker_steamid][side_name(tv)]["trade_kills"] += 1
+                    break
+
+    # ---------------------------------------------------------------- loop per round
+    me_kills_ev, me_deaths_ev = [], []
+    clutch_list = []
+    for r in rounds:
+        t0 = freeze_end[r]
+        teams = team_of[r]
+        rd_deaths = by_round_deaths.get(r, [])
+        rd_hurts = hurts[hurts["round"] == r]
+        win_side = winner.get(r)             # 'CT' / 'T'
+        kills_in_round = defaultdict(int)
+        involved = defaultdict(lambda: {"k": 0, "a": 0, "d": 0, "tr": 0})
+        alive = {s for s in teams}
+        first_done = False
+        clutch_state = {}
+
+        for s in teams:
+            sn = side_name(teams[s])
+            rounds_played[s] += 1
+            S[s]["rounds"] += 1
+            side_stats[s][sn]["rounds"] += 1
+            if win_side == sn:
+                S[s]["rounds_won"] += 1
+                side_stats[s][sn]["rounds_won"] += 1
+
+        for d in rd_deaths:
+            v, k, a = d.user_steamid, d.attacker_steamid, d.assister_steamid
+            tv = teams.get(v)
+            tk = teams.get(k) if k else None
+            tsec = (int(d.tick) - t0) / TICKRATE
+            is_tk = bool(k) and k != v and tk is not None and tk == tv
+            is_suicide = (not k) or k == v
+            if v in S:
+                S[v]["deaths"] += 1
+                side_stats[v][side_name(tv)]["deaths"] += 1
+                involved[v]["d"] += 1
+                if (r, int(d.tick), v) in traded_victims:
+                    involved[v]["tr"] += 1
+                    S[v]["deaths_traded"] += 1
+            if not is_suicide and not is_tk and k in S:
+                kills_in_round[k] += 1
+                S[k]["kills"] += 1
+                side_stats[k][side_name(tk)]["kills"] += 1
+                involved[k]["k"] += 1
+                if d.headshot:
+                    S[k]["hs"] += 1
+                    side_stats[k][side_name(tk)]["hs"] += 1
+                if getattr(d, "thrusmoke", False):
+                    S[k]["smoke_kills"] += 1
+                if getattr(d, "penetrated", 0):
+                    S[k]["wallbangs"] += 1
+                if getattr(d, "noscope", False):
+                    S[k]["noscopes"] += 1
+                if getattr(d, "attackerblind", False):
+                    S[k]["blind_kills"] += 1
+                if not first_done:
+                    S[k]["opening_kills"] += 1
+                    side_stats[k][side_name(tk)]["opening_kills"] += 1
+                    S[v]["opening_deaths"] += 1
+                    side_stats[v][side_name(tv)]["opening_deaths"] += 1
+            if a and a in S and a != v and teams.get(a) is not None and teams.get(a) != tv:
+                S[a]["assists"] += 1
+                involved[a]["a"] += 1
+                if getattr(d, "assistedflash", False):
+                    S[a]["flash_assists"] += 1
+            first_done = True
+            alive.discard(v)
+
+            # clutch tracking (dopo la morte)
+            for team in (2, 3):
+                mates = [s for s in alive if teams.get(s) == team]
+                foes = [s for s in alive if teams.get(s) not in (None, team)]
+                if len(mates) == 1 and len(foes) >= 1 and team not in clutch_state:
+                    clutch_state[team] = (mates[0], len(foes))
+
+            # eventi con coordinate per me
+            if not is_suicide and not is_tk:
+                base = {
+                    "r": r, "t": rnd(tsec), "tick": int(d.tick), "ksid": k, "vsid": v, "w": wn(nz(d.weapon, "")), "hs": bool(d.headshot),
+                    "dist": rnd(nz(d.distance), 1), "ax": rnd(nz(d.attacker_X), 0), "ay": rnd(nz(d.attacker_Y), 0),
+                    "vx": rnd(nz(d.user_X), 0), "vy": rnd(nz(d.user_Y), 0),
+                    "wb": bool(nz(d.penetrated, 0)), "sm": bool(nz(d.thrusmoke, False)),
+                    "blind": bool(nz(d.attackerblind, False)), "air": bool(nz(d.attackerinair, False)),
+                    "ns": bool(nz(d.noscope, False)),
+                    "open": d is rd_deaths[0],
+                    "side": side_name(tk),
+                }
+                if k == me_id:
+                    me_kills_ev.append({**base, "victim": names.get(v, v)})
+                if v == me_id:
+                    me_deaths_ev.append({**base, "killer": names.get(k, k), "traded": (r, int(d.tick), v) in traded_victims,
+                                          "side": side_name(tv)})
+            elif v == me_id:
+                me_deaths_ev.append({
+                    "r": r, "t": rnd(tsec), "tick": int(d.tick), "ksid": "", "w": wn(nz(d.weapon, "")), "hs": False, "dist": 0,
+                    "ax": 0, "ay": 0, "vx": rnd(nz(d.user_X), 0), "vy": rnd(nz(d.user_Y), 0), "wb": False, "sm": False,
+                    "blind": False, "air": False, "ns": False, "open": d is rd_deaths[0],
+                    "side": side_name(tv), "killer": "(compagno/mondo)", "traded": False, "teamkill": True,
+                })
+
+        # multi-kill, KAST, clutch result
+        for s in teams:
+            n = kills_in_round[s]
+            if n >= 2:
+                S[s][f"mk{min(n,5)}"] += 1
+            inv = involved[s]
+            survived = s in alive
+            if inv["k"] or inv["a"] or survived or inv["tr"]:
+                S[s]["kast"] += 1
+                side_stats[s][side_name(teams[s])]["kast"] += 1
+            if survived:
+                S[s]["survived"] += 1
+        for team, (pl, vs) in clutch_state.items():
+            won = (win_side == side_name(team)) and (pl in alive)
+            S[pl][f"clutch_att_{vs if vs < 5 else 5}"] += 1
+            S[pl]["clutch_att"] += 1
+            if won:
+                S[pl][f"clutch_won_{vs if vs < 5 else 5}"] += 1
+                S[pl]["clutch_won"] += 1
+            if pl == me_id:
+                clutch_list.append({"r": r, "vs": vs, "won": bool(won)})
+
+        # danni del round
+        r_dmg = defaultdict(float)
+        for h in rd_hurts.itertuples(index=False):
+            a, v = h.attacker_steamid, h.user_steamid
+            if not a or a == v or a not in S:
+                continue
+            ta, tv = teams.get(a), teams.get(v)
+            if ta is None or tv is None:
+                continue
+            dm = float(nz(h.dmg_health))
+            w = str(nz(h.weapon, ""))
+            if ta == tv:
+                S[a]["team_damage"] += dm
+                continue
+            r_dmg[a] += dm
+            S[a]["damage"] += dm
+            side_stats[a][side_name(ta)]["damage"] += dm
+            if w in GRENADE_DMG:
+                S[a][f"dmg_{GRENADE_DMG[w]}"] += dm
+
+        # riga round per me
+        if me_id in teams:
+            me_side = side_name(teams[me_id])
+            invm = involved[me_id]
+            per_round_me.append({
+                "r": r, "side": me_side, "won": win_side == me_side, "reason": reason.get(r, ""),
+                "k": kills_in_round[me_id], "a": invm["a"], "d": invm["d"], "dmg": rnd(r_dmg[me_id], 0),
+                "survived": me_id in alive, "traded": bool(invm["tr"]),
+                "equip": equip[r].get(me_id, 0), "money": money[r].get(me_id, 0),
+                "team_equip": int(sum(v for s, v in equip[r].items() if teams.get(s) == teams[me_id])),
+                "enemy_equip": int(sum(v for s, v in equip[r].items() if teams.get(s) != teams[me_id])),
+                "len": rnd((end_tick[r] - freeze_end[r]) / TICKRATE),
+                "half": 1 if r <= 12 else 2,
+            })
+
+    # ---------------------------------------------------------------- flash / blind
+    for b in blinds.itertuples(index=False):
+        a, v, r = b.attacker_steamid, b.user_steamid, b.round
+        if not a or a not in S or v not in S or a == v:
+            continue
+        ta, tv = team_of[r].get(a), team_of[r].get(v)
+        if ta is None or tv is None:
+            continue
+        dur = float(nz(b.blind_duration))
+        if ta == tv:
+            S[a]["team_flashed"] += 1
+            S[a]["team_flash_time"] += dur
+        elif dur >= 1.0:
+            S[a]["enemies_flashed"] += 1
+            S[a]["enemy_flash_time"] += dur
+
+    # ---------------------------------------------------------------- utilità (lanci con origine/atterraggio)
+    fires_g = fires[fires["weapon"].isin(GRENADES)].copy()
+    fires_g["kind"] = fires_g["weapon"].map(GRENADES)
+    fires_g = fires_g.sort_values("tick")
+    used = set()
+    util_rows = []
+    for kind, df in det.items():
+        df = df.sort_values("tick")
+        for e in df.itertuples(index=False):
+            if e.user_steamid not in S:
+                continue
+            r = round_of(int(e.tick))
+            if r is None:
+                continue
+            cands = fires_g[(fires_g["kind"] == kind) & (fires_g["user_steamid"] == e.user_steamid)
+                            & (fires_g["tick"] <= e.tick) & (fires_g["tick"] >= e.tick - 20 * TICKRATE)]
+            cands = [c for c in cands.itertuples() if c.Index not in used]
+            ft = None
+            if cands:
+                c = cands[-1] if kind != "molotov" else cands[-1]
+                used.add(c.Index)
+                ft = int(c.tick)
+            S[e.user_steamid][f"thrown_{kind}"] += 1
+            teams = team_of[r]
+            sd = side_name(teams.get(e.user_steamid, 0))
+            util_rows.append({"sid": e.user_steamid, "kind": kind, "r": r, "side": sd,
+                               "t": rnd((int(e.tick) - freeze_end[r]) / TICKRATE),
+                               "lx": rnd(e.x, 0), "ly": rnd(e.y, 0), "lz": rnd(e.z, 0), "fire_tick": ft})
+    # posizione di lancio (solo per me)
+    me_util = [u for u in util_rows if u["sid"] == me_id]
+    ticks_needed = sorted({u["fire_tick"] for u in me_util if u["fire_tick"]})
+    pos = {}
+    if ticks_needed:
+        pdf = p.parse_ticks(["X", "Y", "Z", "pitch", "yaw"], ticks=ticks_needed)
+        pdf["steamid"] = pdf["steamid"].apply(sid)
+        pdf = pdf[pdf["steamid"] == me_id]
+        for row in pdf.itertuples(index=False):
+            pos[int(row.tick)] = (rnd(row.X, 0), rnd(row.Y, 0), rnd(row.pitch, 1), rnd(row.yaw, 1))
+    me_util_out = []
+    for u in me_util:
+        o = {k: v for k, v in u.items() if k not in ("sid", "fire_tick")}
+        if u["fire_tick"] and u["fire_tick"] in pos:
+            o["ox"], o["oy"], o["pitch"], o["yaw"] = pos[u["fire_tick"]]
+            o["fly"] = rnd(0, 1)
+        me_util_out.append(o)
+    # tutti gli atterraggi smoke (riferimento: dove le mettono gli altri)
+    smoke_ref = [{"side": u["side"], "lx": u["lx"], "ly": u["ly"], "t": u["t"], "me": u["sid"] == me_id}
+                 for u in util_rows if u["kind"] == "smoke"]
+
+    # ---------------------------------------------------------------- armi (colpi / hit / kill)
+    shots = defaultdict(int)
+    for f in fires.itertuples(index=False):
+        if f.user_steamid == me_id and f.weapon not in GRENADES and wn(f.weapon) not in ("knife", "taser", "c4"):
+            shots[wn(f.weapon)] += 1
+    weap = defaultdict(lambda: {"shots": 0, "hits": 0, "hs_hits": 0, "dmg": 0.0, "kills": 0, "hs_kills": 0})
+    for w, n in shots.items():
+        weap[w]["shots"] = n
+    hit_zone = defaultdict(int)
+    for h in hurts.itertuples(index=False):
+        if h.attacker_steamid != me_id or h.user_steamid == me_id:
+            continue
+        r = h.round
+        if team_of[r].get(me_id) == team_of[r].get(h.user_steamid):
+            continue
+        w = wn(nz(h.weapon, ""))
+        if w in GRENADE_DMG or w in ("knife", "world", "taser", "planted_c4"):
+            continue
+        weap[w]["hits"] += 1
+        weap[w]["dmg"] += float(nz(h.dmg_health))
+        hg = str(nz(h.hitgroup, "generic"))
+        if hg == "head":
+            weap[w]["hs_hits"] += 1
+        hit_zone[HIT_GROUPS.get(hg, "Altro")] += 1
+    for k in me_kills_ev:
+        weap[k["w"]]["kills"] += 1
+        if k["hs"]:
+            weap[k["w"]]["hs_kills"] += 1
+    weapons = [{"w": w, **{kk: (rnd(vv, 0) if kk == "dmg" else vv) for kk, vv in d.items()}} for w, d in weap.items()
+               if d["shots"] or d["kills"] or d["hits"]]
+    weapons.sort(key=lambda x: -(x["kills"] * 1000 + x["shots"]))
+
+    # bomb
+    plant_me = int((plants["user_steamid"] == me_id).sum())
+    defuse_me = int((defuses["user_steamid"] == me_id).sum())
+
+    # ---------------------------------------------------------------- punteggio
+    me_wins = sum(1 for x in per_round_me if x["won"])
+    me_loss = sum(1 for x in per_round_me if not x["won"])
+    ct_w = sum(1 for x in per_round_me if x["side"] == "CT" and x["won"])
+    ct_n = sum(1 for x in per_round_me if x["side"] == "CT")
+    t_w = sum(1 for x in per_round_me if x["side"] == "T" and x["won"])
+    t_n = sum(1 for x in per_round_me if x["side"] == "T")
+    result = "W" if me_wins > me_loss else ("L" if me_wins < me_loss else "D")
+    complete = max(me_wins, me_loss) >= 13
+
+    # ---------------------------------------------------------------- giocatori
+    def player_out(s):
+        st = dict(S[s])
+        n = max(1, st.get("rounds", 0))
+        rounds_n = n
+        k, d, a = st.get("kills", 0), st.get("deaths", 0), st.get("assists", 0)
+        # HLTV rating 1.0 (approssimato)
+        # i round con 1 kill contano 1 (non tracciati qui) -> approssimazione standard: usiamo kills totali come proxy
+        kill_rating = (k / rounds_n) / 0.679
+        surv_rating = ((rounds_n - d) / rounds_n) / 0.317
+        # round con N kill: ricaviamo round con 1 kill = kills - sum(N*count_N)
+        multi_kills = st.get("mk2", 0) * 2 + st.get("mk3", 0) * 3 + st.get("mk4", 0) * 4 + st.get("mk5", 0) * 5
+        one_k = max(0, k - multi_kills)
+        rmk = (one_k + 4 * st.get("mk2", 0) + 9 * st.get("mk3", 0) + 16 * st.get("mk4", 0) + 25 * st.get("mk5", 0)) / rounds_n / 1.277
+        rating = (kill_rating + 0.7 * surv_rating + rmk) / 2.7
+        out = {
+            "sid": s, "name": names[s], "team": side_name(team_of[rounds[0]].get(s, 0)) if team_of[rounds[0]].get(s) else "?",
+            "mine_team": team_of[rounds[0]].get(s) == team_of[rounds[0]].get(me_id) if rounds else False,
+            "rating": rnd(rating, 2),
+        }
+        for key in ["rounds", "rounds_won", "kills", "deaths", "assists", "hs", "damage", "kast", "survived", "opening_kills",
+                    "opening_deaths", "trade_kills", "deaths_traded", "mk2", "mk3", "mk4", "mk5", "clutch_att", "clutch_won",
+                    "flash_assists", "enemies_flashed", "enemy_flash_time", "team_flashed", "team_flash_time", "dmg_he",
+                    "dmg_molotov", "team_damage", "smoke_kills", "wallbangs", "noscopes", "blind_kills", "thrown_smoke",
+                    "thrown_flash", "thrown_he", "thrown_molotov"]:
+            v = st.get(key, 0)
+            out[key] = rnd(v, 1) if isinstance(v, float) and key in ("enemy_flash_time", "team_flash_time") else int(round(v))
+        out["side"] = {sd: {kk: int(round(vv)) for kk, vv in side_stats[s][sd].items()} for sd in ("CT", "T")}
+        for c in range(1, 6):
+            out[f"clutch_att_{c}"] = int(st.get(f"clutch_att_{c}", 0))
+            out[f"clutch_won_{c}"] = int(st.get(f"clutch_won_{c}", 0))
+        return out
+
+    plist = [player_out(s) for s in players]
+    plist.sort(key=lambda x: (-int(x["mine_team"]), -x["rating"]))
+
+    match_id = hashlib.sha1(f"{os.path.basename(path)}".encode()).hexdigest()[:10]
+    # impronta della partita: stessa partita scaricata con nomi diversi = stessa impronta
+    fp = hashlib.sha1((map_name + "|" + ",".join(sorted(players)) + f"|{me_wins}-{me_loss}|{header.get('patch_version','')}").encode()).hexdigest()[:12]
+    me_p = next(x for x in plist if x["sid"] == me_id)
+    try:
+        ptk = {int(r): int(t) for r, t in zip(plants["round"], plants["tick"]) if r == r} if "round" in plants.columns else {}
+        death_context(p, me_id, [e for e in me_deaths_ev if not e.get("teamkill")], team_of, names, ptk, by_round_deaths, det, round_of)
+    except Exception as ex:   # il contesto e' un extra: non deve mai bloccare l'analisi
+        print(f"  [avviso] contesto morti non calcolato: {ex}")
+    mov = None
+    try:
+        mov = aim_analysis(p, me_id, fires, hurts, me_kills_ev, me_deaths_ev)
+    except Exception as ex:
+        print(f"  [avviso] analisi mira non calcolata: {ex}")
+
+    return {
+        "id": match_id,
+        "fp": fp,
+        "file": os.path.basename(path),
+        "map": map_name,
+        "patch": int(header.get("patch_version", 0) or 0),
+        "server": header.get("server_name", ""),
+        "score": {"us": me_wins, "them": me_loss, "ct_won": ct_w, "ct_rounds": ct_n, "t_won": t_w, "t_rounds": t_n},
+        "result": result,
+        "complete": bool(complete),
+        "rounds": per_round_me,
+        "players": plist,
+        "me": {
+            "sid": me_id, "name": names[me_id],
+            "kills": me_kills_ev, "deaths": me_deaths_ev, "util": me_util_out, "clutches": clutch_list,
+            "weapons": weapons, "hit_zones": dict(hit_zone), "plants": plant_me, "defuses": defuse_me, "mov": mov,
+        },
+        "smoke_ref": smoke_ref,
+    }
+
+
+UTIL_INV = {"Flashbang": "flash", "Smoke Grenade": "smoke", "HE Grenade": "he", "Molotov": "molotov",
+            "Incendiary Grenade": "molotov", "Decoy Grenade": "decoy"}
+
+
+def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=None, det=None, round_of=None):
+    """Per ogni mia morte salva il contesto: posizioni di tutti, scia, compagni vicini, utility rimasta.
+    La classificazione degli errori avviene nella dashboard, cosi' si puo' cambiare senza rileggere le demo."""
+    if not evs:
+        return
+    STEP = 32  # mezzo secondo
+    need = set()
+    for e in evs:
+        base = max(1, e["tick"] - 1)
+        for k in range(0, 9):
+            need.add(max(1, base - k * STEP))
+    df = p.parse_ticks(["X", "Y", "Z", "team_num", "health", "last_place_name", "inventory", "flash_duration",
+                        "active_weapon_name"], ticks=sorted(need))
+    df["steamid"] = df["steamid"].apply(sid)
+    by_tick = {}
+    for row in df.itertuples(index=False):
+        by_tick.setdefault(int(row.tick), {})[row.steamid] = row
+
+    def alive_at(t):
+        return {s: r for s, r in by_tick.get(t, {}).items() if nz(r.health) > 0 and int(nz(r.team_num)) in (2, 3)}
+
+    for e in evs:
+        base = max(1, e["tick"] - 1)
+        snap = alive_at(base)
+        mine = snap.get(me_id)
+        if mine is None:
+            # morto un attimo prima del tick: usa quello prima
+            for k in range(1, 4):
+                snap = alive_at(max(1, base - k * 8)) if (base - k * 8) in by_tick else snap
+            mine = snap.get(me_id)
+        if mine is None:
+            continue
+        myteam = int(nz(mine.team_num))
+        mates = [(s, r) for s, r in snap.items() if s != me_id and int(nz(r.team_num)) == myteam]
+        foes = [(s, r) for s, r in snap.items() if int(nz(r.team_num)) not in (myteam,)]
+        mx, my = float(mine.X), float(mine.Y)
+
+        def dist(r):
+            return math.hypot(float(r.X) - mx, float(r.Y) - my)
+        near = min(mates, key=lambda sr: dist(sr[1])) if mates else None
+        # scia
+        trail = []
+        for k in range(8, -1, -1):
+            r = alive_at(max(1, base - k * STEP)).get(me_id)
+            if r is not None:
+                trail.append([int(float(r.X)), int(float(r.Y))])
+        speed = 0.0
+        prev = alive_at(max(1, base - STEP)).get(me_id)
+        if prev is not None:
+            speed = math.hypot(mx - float(prev.X), my - float(prev.Y)) / (STEP / TICKRATE)
+        ut = {"flash": 0, "smoke": 0, "he": 0, "molotov": 0}
+        for it in (list(mine.inventory) if mine.inventory is not None else []):
+            kk = UTIL_INV.get(str(it))
+            if kk in ut:
+                ut[kk] += 1
+        fl = max(float(nz(mine.flash_duration)), float(nz((alive_at(max(1, base - 16)).get(me_id) or mine).flash_duration)))
+        pos = []
+        for s, r in snap.items():
+            tm = "me" if s == me_id else ("mate" if int(nz(r.team_num)) == myteam else "foe")
+            pos.append({"n": str(names.get(s, s))[:14], "x": int(float(r.X)), "y": int(float(r.Y)), "tm": tm,
+                        "k": s == e.get("ksid"), "pl": str(nz(r.last_place_name, "")), "w": wn(str(nz(r.active_weapon_name, "")).lower().replace("-", "").replace(" ", ""))})
+        kr = snap.get(e.get("ksid")) if e.get("ksid") else None
+        pt = plant_tick.get(e["r"])
+        e["c"] = {
+            "pl": str(nz(mine.last_place_name, "")), "kp": str(nz(kr.last_place_name, "")) if kr is not None else "",
+            "tr": trail, "sp": int(speed), "md": int(dist(near[1])) if near else None,
+            "mn": str(names.get(near[0], ""))[:14] if near else "", "ma": len(mates), "fa": len([1 for s, r in foes]) ,
+            "ut": ut, "fl": round(fl, 1), "pb": bool(pt and e["tick"] > pt), "pos": pos,
+        }
+        # eventi recenti (ultimi 12 s dello stesso round): morti di tutti e utility lanciate
+        try:
+            rec = []
+            W = int(12 * TICKRATE)
+            rr = e["r"]
+            tm_of = team_of.get(rr, {})
+            def who(s):
+                if s == me_id:
+                    return "me"
+                return "mate" if tm_of.get(s) == tm_of.get(me_id) else "foe"
+            AFTER = int(6 * TICKRATE)
+            for d in (by_round_deaths or {}).get(rr, []):
+                dtk = int(d.tick)
+                if dtk == e["tick"] and d.user_steamid == me_id:
+                    continue
+                if (dtk < e["tick"] and e["tick"] - dtk <= W) or (dtk > e["tick"] and dtk - e["tick"] <= AFTER):
+                    v, k = d.user_steamid, d.attacker_steamid
+                    rec.append({"s": round((e["tick"] - dtk) / TICKRATE, 1), "k": "d",
+                                "ax": int(nz(getattr(d, "attacker_X", 0))), "ay": int(nz(getattr(d, "attacker_Y", 0))), "v": str(names.get(v, v))[:14], "vt": who(v),
+                                "a": str(names.get(k, k))[:14] if k else "", "at": who(k) if k else "", "w": wn(str(nz(getattr(d, "weapon", ""), "")).lower()),
+                                "hs": bool(nz(getattr(d, "headshot", False), False)), "x": int(nz(getattr(d, "user_X", 0))), "y": int(nz(getattr(d, "user_Y", 0)))})
+            for kind, dfu in (det or {}).items():
+                for u in dfu.itertuples(index=False):
+                    utk = int(u.tick)
+                    if utk <= e["tick"] and e["tick"] - utk <= W and round_of and round_of(utk) == rr:
+                        rec.append({"s": round((e["tick"] - utk) / TICKRATE, 1), "k": "u", "u": kind, "ut": who(u.user_steamid),
+                                    "x": int(nz(getattr(u, "x", 0))), "y": int(nz(getattr(u, "y", 0)))})
+            rec.sort(key=lambda z: -z["s"])
+            e["c"]["ev"] = rec
+            # chi c'era attorno a me 3 secondi prima (posizioni e squadra)
+            snap3 = alive_at(max(1, base - 6 * STEP))
+            e["c"]["p3"] = [{"n": str(names.get(s, s))[:14], "x": int(float(r.X)), "y": int(float(r.Y)),
+                             "tm": "me" if s == me_id else ("mate" if int(nz(r.team_num)) == myteam else "foe")} for s, r in snap3.items()]
+        except Exception:
+            e["c"]["ev"] = []
+
+
+SNIPERS = ("awp", "ssg08", "scar20", "g3sg1")
+NOT_GUNS = ("knife", "taser", "c4", "decoy", "flashbang", "hegrenade", "smokegrenade", "molotov", "inferno")
+
+
+def _aim_err(me, en):
+    """Angolo (gradi) tra dove guardo e la testa del nemico; dpit>0 = mirino piu' in basso della testa."""
+    ez = float(me.Z) + (46.0 if nz(me.ducking, False) else 64.0)
+    hz = float(en.Z) + (44.0 if nz(en.ducking, False) else 62.0)
+    dx, dy, dz = float(en.X) - float(me.X), float(en.Y) - float(me.Y), hz - ez
+    yaw_t = math.degrees(math.atan2(dy, dx))
+    pit_t = -math.degrees(math.atan2(dz, math.hypot(dx, dy)))
+    dyaw = (float(me.yaw) - yaw_t + 180.0) % 360.0 - 180.0
+    dpit = float(me.pitch) - pit_t
+    return math.hypot(dyaw, dpit), dyaw, dpit
+
+
+def aim_analysis(p, me_id, fires, hurts, kills_ev, deaths_ev):
+    """Movimento negli spari + posizionamento del mirino. Salva 'a' dentro kill e morti, ritorna le statistiche sugli spari."""
+    import bisect
+    mine = fires[fires["user_steamid"] == me_id].sort_values("tick")
+    shots = [(int(r.tick), wn(r.weapon)) for r in mine.itertuples(index=False)
+             if wn(r.weapon) not in NOT_GUNS and r.weapon not in GRENADES]
+    need = set()
+    for t, w in shots:
+        need.update((t, max(1, t - 8)))
+    ev_plan = []
+    allf = fires.sort_values("tick")
+    for kind, evs in (("k", kills_ev), ("d", deaths_ev)):
+        for e in evs:
+            if e.get("teamkill"):
+                continue
+            shooter = me_id if kind == "k" else e.get("ksid")
+            target = e.get("vsid") if kind == "k" else me_id
+            if not shooter or not target:
+                continue
+            win = allf[(allf["user_steamid"] == shooter) & (allf["tick"] <= e["tick"]) & (allf["tick"] >= e["tick"] - 64)]
+            if kind == "k":
+                win = win[win["weapon"].apply(wn) == e["w"]]
+            if not len(win):
+                continue
+            tf = int(win.iloc[0]["tick"])
+            ev_plan.append((e, kind, shooter, target, tf))
+            need.update((tf, max(1, tf - 16), max(1, tf - 8), max(1, tf - 24)))
+    if not need:
+        return None
+    df = p.parse_ticks(["X", "Y", "Z", "pitch", "yaw", "ducking"], ticks=sorted(need))
+    df["steamid"] = df["steamid"].apply(sid)
+    rows = {}
+    for r in df.itertuples(index=False):
+        rows.setdefault(int(r.tick), {})[r.steamid] = r
+
+    def speed(s, t):
+        a, b = rows.get(t, {}).get(s), rows.get(max(1, t - 8), {}).get(s)
+        if a is None or b is None:
+            return None
+        return math.hypot(float(a.X) - float(b.X), float(a.Y) - float(b.Y)) / (8.0 / TICKRATE)
+
+    hurt_t = defaultdict(list)
+    for h in hurts[hurts["attacker_steamid"] == me_id].itertuples(index=False):
+        hurt_t[wn(h.weapon)].append(int(h.tick))
+    for v in hurt_t.values():
+        v.sort()
+
+    def bin_of(v):
+        return "st" if v <= 45 else ("sl" if v <= 110 else "mv")
+    blank = lambda: {"st": [0, 0], "sl": [0, 0], "mv": [0, 0]}
+    A, F, W = blank(), blank(), defaultdict(blank)
+    prev_t, prev_w = -10 ** 9, ""
+    for t, w in shots:
+        sp = speed(me_id, t)
+        first = (t - prev_t > 32) or w != prev_w
+        prev_t, prev_w = t, w
+        if sp is None or w in SNIPERS:
+            continue
+        ht = hurt_t.get(w, [])
+        i = bisect.bisect_left(ht, t)
+        hit = 1 if (i < len(ht) and ht[i] - t <= 20) else 0
+        b = bin_of(sp)
+        for D in ([A, W[w]] + ([F] if first else [])):
+            D[b][0] += 1
+            D[b][1] += hit
+
+    for e, kind, shooter, target, tf in ev_plan:
+        # il "posizionamento" si misura un attimo prima del primo colpo; l'errore al colpo dice quanto lontano partivi
+        out = {}
+        for key, tt in (("e0", max(1, tf - 16)), ("e1", tf)):
+            m_, t_ = rows.get(tt, {}).get(me_id), rows.get(tt, {}).get(target if kind == "k" else shooter)
+            if m_ is None or t_ is None:
+                continue
+            er, dy, dp = _aim_err(m_, t_)
+            out[key] = round(er, 1)
+            if key == "e1":
+                out["dp"] = round(dp, 1)
+                out["dy"] = round(dy, 1)
+        sp = speed(me_id, tf)
+        if sp is not None:
+            out["s"] = int(sp)
+        if out:
+            out["k"] = kind
+            e["a"] = out
+    return {"all": A, "first": F, "w": {w: d for w, d in W.items() if sum(x[0] for x in d.values()) >= 25}}
+
+
+# ====================================================================== file .info di Valve
+# Accanto a ogni demo (match730_....dem) CS2 salva un file .dem.info con il tabellone della partita
+# e la data reale. Serve anche per le partite di cui NON hai scaricato la demo.
+import struct
+import datetime as _dt
+
+STEAM_BASE = 76561197960265728
+
+
+def _varint(b, i):
+    r = s = 0
+    while True:
+        c = b[i]
+        i += 1
+        r |= (c & 0x7F) << s
+        s += 7
+        if c < 0x80:
+            return r, i
+
+
+def _pb(b):
+    i, out = 0, []
+    while i < len(b):
+        k, i = _varint(b, i)
+        f, w = k >> 3, k & 7
+        if w == 0:
+            v, i = _varint(b, i)
+        elif w == 1:
+            v = struct.unpack("<Q", b[i:i + 8])[0]
+            i += 8
+        elif w == 5:
+            v = struct.unpack("<I", b[i:i + 4])[0]
+            i += 4
+        elif w == 2:
+            n, i = _varint(b, i)
+            v = b[i:i + n]
+            i += n
+        else:
+            raise ValueError("protobuf non valido")
+        out.append((f, w, v))
+    return out
+
+
+def read_info(path):
+    """Legge un file .dem.info. Ritorna {valve_id, time, rounds:[{acc:[...], f:{campo:[valori]}}]}."""
+    top = _pb(open(path, "rb").read())
+    d = {f: v for f, w, v in top if w != 2}
+    rounds = []
+    for f, w, v in top:
+        if f == 5 and w == 2:
+            acc, arrs = [], {}
+            for ff, ww, vv in _pb(v):
+                if ff == 2 and ww == 2:
+                    acc = [x[2] for x in _pb(vv) if x[0] == 1]
+                elif ww == 0:
+                    arrs.setdefault(ff, []).append(vv)
+            rounds.append({"acc": acc, "f": arrs})
+    return {"valve_id": str(d.get(1, "")), "time": d.get(2), "rounds": rounds}
+
+
+def info_played(info):
+    return _dt.datetime.fromtimestamp(info["time"]).isoformat(timespec="minutes") if info.get("time") else ""
+
+
+def lite_from_info(path, me_id):
+    """Partita 'solo tabellone' ricavata dal .info (senza demo). None se non ci sei tu."""
+    info = read_info(path)
+    rr = info["rounds"]
+    if not rr:
+        return None
+    last = rr[-1]
+    acc = last["acc"]
+    me_acc = int(me_id) - STEAM_BASE
+    if me_acc not in acc:
+        return None
+    ix = acc.index(me_acc)
+    f = last["f"]
+    first_team = ix < 5
+    sc = f.get(12, [0, 0])
+    us, them = (sc[0], sc[1]) if first_team else (sc[1], sc[0])
+    win_team = (f.get(11) or [0])[0]            # 1 = ha vinto la prima squadra, 2 = la seconda
+    result = "W" if win_team == (1 if first_team else 2) else "L" if win_team else "D"
+    n = len(rr)
+
+    def col(k):
+        return f.get(k, [0] * len(acc))
+
+    # kill per round dai valori cumulativi (round per round)
+    prev, mk = 0, [0] * 6
+    for r in rr:
+        cur = r["f"].get(5, [0] * len(acc))[ix]
+        k = max(0, cur - prev)
+        prev = cur
+        mk[min(k, 5)] += 1
+    K, A, D = col(5)[ix], col(6)[ix], col(7)[ix]
+    kr = (K / n) / 0.679
+    sr = ((n - D) / n) / 0.317
+    rmk = (mk[1] + 4 * mk[2] + 9 * mk[3] + 16 * mk[4] + 25 * mk[5]) / n / 1.277
+    players = []
+    for j in range(len(acc)):
+        players.append({"me": j == ix, "mine_team": (j < 5) == first_team, "k": col(5)[j], "a": col(6)[j], "d": col(7)[j],
+                        "score": col(8)[j], "hs": col(17)[j], "mvp": col(21)[j]})
+    return {
+        "id": "i" + info["valve_id"][-10:], "valve_id": info["valve_id"], "source": "info",
+        "played": info_played(info), "rounds": n, "duration": (f.get(15) or [0])[0],
+        "score": {"us": us, "them": them}, "result": result,
+        "k": K, "a": A, "d": D, "hs": col(17)[ix], "mvp": col(21)[ix], "pts": col(8)[ix],
+        "mk": mk, "rating": rnd((kr + 0.7 * sr + rmk) / 2.7, 2), "players": players,
+    }
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("demos", nargs="+")
+    ap.add_argument("--steamid", required=True, help="il tuo SteamID64")
+    ap.add_argument("--out", default="cs_data.json")
+    args = ap.parse_args()
+    matches = []
+    for d in args.demos:
+        print("Parsing", d, file=sys.stderr)
+        try:
+            m = parse_demo(d, args.steamid)
+            m["added"] = _dt.datetime.fromtimestamp(os.path.getmtime(d)).isoformat(timespec="seconds")
+            ip = d + ".info"
+            if os.path.exists(ip):
+                inf = read_info(ip)
+                m["valve_id"], m["played"] = inf["valve_id"], info_played(inf)
+            matches.append(m)
+        except SystemExit as e:
+            print(e, file=sys.stderr)
+    matches.sort(key=lambda m: (m.get("played", ""), m["patch"], m.get("added", "")))
+    out = {"version": 1, "steamid": args.steamid, "matches": matches}
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"Scritto {args.out}: {len(matches)} partite", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

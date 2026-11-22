@@ -1,0 +1,4 @@
+pywebview
+demoparser2
+pandas
+zstandard

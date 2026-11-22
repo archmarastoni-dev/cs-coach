@@ -1,0 +1,11 @@
+# dati personali: non vanno mai pubblicati
+cs_data.json
+config.json
+cs_coach.html
+cs_coach.log
+*.dem
+*.dem.*
+build/
+dist/
+__pycache__/
+*.spec
