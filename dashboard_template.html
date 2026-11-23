@@ -1224,6 +1224,19 @@ function posAnalysis(e){
     R.lines.push(`Mirino al momento della morte: ${Math.round(mErr)}° dall'avversario; lui aveva il mirino a ${Math.round(kErr)}° da te${kErr<=15?' (ti stava già puntando: pre-aim sul tuo angolo)':''}.`);
     if(me_.cr) R.lines.push('Eri accovacciato quando sei morto.');
   }
+  // 5) geometria reale della mappa (demo analizzate con awpy)
+  const g = c.geo;
+  if(g){
+    R.geo = g;
+    if(g.exp>=1.5) { R.tags.push('espostolungo'); R.lines.push(`Linea di tiro: eri visibile dalla posizione di ${esc(e.killer)} da almeno ${g.exp} s prima di morire: sei rimasto troppo a lungo nella sua linea (mappa reale).`); }
+    else if(g.exp<=0.5) R.lines.push(`Linea di tiro: sei entrato nella sua linea di tiro solo ora (peek rapido): ${esc(e.killer)} era già in posizione e ti aspettava.`);
+    else R.lines.push(`Linea di tiro: eri esposto a ${esc(e.killer)} da circa ${g.exp} s.`);
+    if(g.fv>=2){ R.tags.push('piunemici'); R.lines.push(`Nemici con linea di tiro su di te: ${g.fv} (mappa reale): più avversari potevano sparare nello stesso momento.`); }
+    if(g.mk===0 && c.ma>=1){ R.tags.push('nessunacopertura'); R.lines.push('Compagni: nessuno aveva linea di tiro sul punto dove stava l\'avversario, quindi nessuno poteva coprirti o vendicarti subito.'); }
+    else if(g.mk>=1) R.lines.push(`Compagni: ${g.mk} avevano linea di tiro sull'avversario (potevano coprirti o vendicarti).`);
+    if(g.cov){ R.tags.push('copertura'); const d=g.cov.d; const dirT = Math.abs(d)===180?'indietro':Math.abs(d)<=90?(d>0?'di lato (sinistra)':'di lato (destra)'):(d>0?'indietro a sinistra':'indietro a destra'); R.lines.push(`Copertura vicina: bastava un passo di ${g.cov.m} m ${dirT} per uscire dalla sua linea di tiro.`); }
+    else R.lines.push('Copertura vicina: nessun punto entro ~2,4 m spezzava la sua linea di tiro: eri in uno spazio aperto.');
+  }
   return R;
 }
 function posSummary(L){
@@ -1236,11 +1249,16 @@ function posSummary(L){
   if(adv/n>=0.3) tips.push(`Nel ${pm(adv)} delle morti stavi avanzando verso l'avversario: apri gli angoli con shoulder peek e utility invece di un peek largo.`);
   if(xf/n>=0.25) tips.push(`Nel ${pm(xf)} dei casi avevi nemici da più angolazioni (crossfire): evita posizioni in cui più angoli ti vedono e fatti coprire.`);
   if(fw/n>=0.4) tips.push(`Nel ${pm(fw)} dei casi eri il più avanti della squadra: aspetta che un compagno sia accanto prima di prendere il contatto.`);
-  return `<div class="card"><h2>Peek e posizionamento alla morte</h2><div class="sub">Su ${n} morti analizzate: come ti muovevi, dove erano avversari e compagni.</div>${stackBar(items)}${tips.length?`<ul style="margin:10px 0 0;padding-left:20px">${tips.map(x=>`<li style="margin:4px 0">${esc(x)}</li>`).join('')}</ul>`:''}<p class="sub" style="margin-top:8px">Limite: non c'è la geometria della mappa, quindi le coperture reali non sono misurate.</p></div>`;
+  const G = A.filter(r=>r.geo), gn = G.length;
+  if(gn>=5){ const ex=G.filter(r=>r.tags.includes('espostolungo')).length, cv=G.filter(r=>r.tags.includes('copertura')).length, nc=G.filter(r=>r.tags.includes('nessunacopertura')).length;
+    if(ex/gn>=0.3) tips.push(`Con la mappa reale: nel ${pc(ex/gn)} delle morti eri nella linea di tiro dell'avversario da almeno 1,5 s.`);
+    if(cv/gn>=0.3) tips.push(`Nel ${pc(cv/gn)} delle morti bastava un passo di 1-2 m per spezzare la sua linea: usa di più gli angoli e i ripari vicini.`);
+    if(nc/gn>=0.3) tips.push(`Nel ${pc(nc/gn)} dei casi nessun compagno vedeva l'avversario: nessuna copertura per il trade.`); }
+  return `<div class="card"><h2>Peek e posizionamento alla morte</h2><div class="sub">Su ${n} morti analizzate: come ti muovevi, dove erano avversari e compagni.</div>${stackBar(items)}${tips.length?`<ul style="margin:10px 0 0;padding-left:20px">${tips.map(x=>`<li style="margin:4px 0">${esc(x)}</li>`).join('')}</ul>`:''}<p class="sub" style="margin-top:8px">${gn>=5?`Geometria reale disponibile per ${gn} morti.`:'Limite: la geometria reale della mappa è disponibile solo per le demo analizzate con awpy.'}</p></div>`;
 }
 function posBlock(e){
   const R = posAnalysis(e); if(!R) return '';
-  return `<div class="iss ok" style="border-color:#c58bff"><h4>Peek e posizionamento</h4>${R.lines.map(l=>`<p>• ${l}</p>`).join('')}<p class="sub">Limite: coperture e linee di tiro reali richiedono la geometria della mappa, che qui non c'è; le conclusioni si basano sulle posizioni di giocatori e compagni.</p></div>`;
+  return `<div class="iss ok" style="border-color:#c58bff"><h4>Peek e posizionamento</h4>${R.lines.map(l=>`<p>• ${l}</p>`).join('')}<p class="sub">${R.geo?'Linee di tiro e coperture calcolate con la geometria reale della mappa (solo muri e oggetti fissi, non smoke né porte).':'Linee di tiro e coperture reali richiedono la geometria della mappa (installa awpy, vedi LEGGIMI): qui le conclusioni usano solo le posizioni.'}</p></div>`;
 }
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;

@@ -18,6 +18,11 @@ import sys
 from collections import defaultdict
 
 import pandas as pd
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import cs_geo as _geo
+except Exception:
+    _geo = None
 from demoparser2 import DemoParser
 
 TICKRATE = 64
@@ -550,7 +555,7 @@ def parse_demo(path, me_id):
     me_p = next(x for x in plist if x["sid"] == me_id)
     try:
         ptk = {int(r): int(t) for r, t in zip(plants["round"], plants["tick"]) if r == r} if "round" in plants.columns else {}
-        death_context(p, me_id, [e for e in me_deaths_ev if not e.get("teamkill")], team_of, names, ptk, by_round_deaths, det, round_of)
+        death_context(p, me_id, [e for e in me_deaths_ev if not e.get("teamkill")], team_of, names, ptk, by_round_deaths, det, round_of, map_name)
     except Exception as ex:   # il contesto e' un extra: non deve mai bloccare l'analisi
         print(f"  [avviso] contesto morti non calcolato: {ex}")
     mov = None
@@ -602,7 +607,7 @@ def _look(r):
     return out
 
 
-def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=None, det=None, round_of=None):
+def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=None, det=None, round_of=None, map_name=None):
     """Per ogni mia morte salva il contesto: posizioni di tutti, scia, compagni vicini, utility rimasta.
     La classificazione degli errori avviene nella dashboard, cosi' si puo' cambiare senza rileggere le demo."""
     if not evs:
@@ -648,10 +653,12 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
         near = min(mates, key=lambda sr: dist(sr[1])) if mates else None
         # scia
         trail = []
+        trail3 = []
         for k in range(8, -1, -1):
             r = alive_at(max(1, base - k * STEP)).get(me_id)
             if r is not None:
                 trail.append([int(float(r.X)), int(float(r.Y))])
+                trail3.append((float(r.X), float(r.Y), float(r.Z)))
         speed = 0.0
         prev = alive_at(max(1, base - STEP)).get(me_id)
         if prev is not None:
@@ -676,6 +683,17 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
             "mn": str(names.get(near[0], ""))[:14] if near else "", "ma": len(mates), "fa": len([1 for s, r in foes]) ,
             "ut": ut, "fl": round(fl, 1), "pb": bool(pt and e["tick"] > pt), "pos": pos,
         }
+        # geometria reale della mappa (opzionale: richiede awpy e i dati di mappa)
+        if map_name and _geo is not None:
+            try:
+                kr3 = (float(kr.X), float(kr.Y), float(kr.Z)) if kr is not None else None
+                g = _geo.analyse_death(map_name, (mx, my, float(mine.Z)), kr3,
+                                       [(float(r.X), float(r.Y), float(r.Z)) for s, r in foes],
+                                       [(float(r.X), float(r.Y), float(r.Z)) for s, r in mates], trail3)
+                if g:
+                    e["c"]["geo"] = g
+            except Exception:
+                pass
         # eventi recenti (ultimi 12 s dello stesso round): morti di tutti e utility lanciate
         try:
             rec = []

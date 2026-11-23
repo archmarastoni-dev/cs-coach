@@ -10,5 +10,5 @@ if "%PY%"=="" (
 )
 echo Uso: %PY%
 %PY% --version
-%PY% -m pip install pywebview demoparser2 pandas zstandard >nul 2>&1
+%PY% -m pip install pywebview demoparser2 pandas zstandard awpy >nul 2>&1
 start "" %PY% cs_coach_app.py

@@ -50,3 +50,7 @@ Ratings, KAST and reference values are estimates based on public formulas, not o
 ## License
 
 Released under the [MIT License](LICENSE).
+
+## Optional: real map geometry (line of sight and cover)
+
+If `awpy` is installed (`pip install awpy`, included in `requirements.txt`), new demos are also analysed with the real collision geometry of the map: how long you were in the enemy's line of sight, how many enemies could see you, whether a teammate could see the enemy, and whether a one-to-two-meter step would have broken the line of sight. The map data (about 50 MB) is downloaded automatically on first use. Without `awpy` everything else still works. Smokes, doors and bullet penetration are not modelled. The prebuilt executable does not bundle `awpy`; run `Avvia_CS_Coach.bat` or `cs_coach.py` to use this feature.
