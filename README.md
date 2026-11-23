@@ -1,17 +1,52 @@
 # CS Coach
 
-Analizza le tue partite di CS2 (Premier, FACEIT, Competitivo) a partire dalle demo, in un'app per Windows con finestra propria. Tutto resta sul tuo PC: non viene inviato nulla online.
+A Windows desktop app that analyzes your own Counter-Strike 2 matches (Premier, FACEIT, Competitive) from the demo files. It opens in its own window, reads new demos automatically, and shows interactive statistics, death-by-death advice, map heatmaps and a round-by-round economy review. Everything runs locally: nothing is uploaded anywhere.
 
-## Come usarla
-1. Scarica `CSCoach-Windows.zip` dalla sezione **Releases** e decomprimila dove vuoi.
-2. Apri `CSCoach.exe`. Al primo avvio chiede il tuo **SteamID64** (17 cifre, lo trovi su steamid.io), la **cartella delle demo** (di solito `replays` dentro la cartella di CS2) e se cancellare le demo dopo l'analisi.
-3. Da lì in poi analizza da sola le demo nuove e ricontrolla ogni 2 minuti.
+> The interface and the coaching texts are currently in Italian. The project documentation is in English.
 
-I tuoi dati restano nella stessa cartella (`cs_data.json`). Per disinstallare basta cancellare la cartella.
+## Features
 
-Windows può avvisare "app non riconosciuta" perché l'exe non è firmato: *Ulteriori informazioni → Esegui comunque*.
+- Per-match and overall statistics (rating estimate, ADR, K/D, KAST, headshot %, opening duels, trades, clutches).
+- Map views with kills, deaths and heatmaps, zoom and pan, and a table of the zones where fights happen most.
+- Context-aware death analysis: what happened in the 12 seconds before and 6 seconds after each death, nearby teammates, trade chances, and utility advice.
+- Economy review per match: buy type (pistol, eco, semi/force, full buy), loss-bonus streak, unspent money, force-buy chains, anti-eco play, and, for demos parsed with this version, the exact weapon, armor and grenades bought each round.
+- Optional auto-delete of each demo after it has been parsed, so your disk stays clean while your stats are kept.
 
-## Per sviluppatori
-Serve Python 3.10–3.13. `pip install -r requirements.txt` e `python cs_coach_app.py`. L'exe si costruisce con GitHub Actions (vedi `.github/workflows/build.yml`) o con `Crea_App.bat`.
+## Download and use
 
-Rating, KAST e riferimenti sono stime basate su formule pubbliche, non dati ufficiali.
+1. Download `CSCoach-Windows.zip` from the **Releases** page and unzip it anywhere.
+2. Run `CSCoach.exe`. On first launch it asks for your **SteamID64** (17 digits, see steamid.io), the **demo folder** (usually the `replays` folder inside the CS2 install) and whether to delete demos after analysis.
+3. From then on it parses new demos by itself and checks again every two minutes.
+
+Your data stays in the same folder (`cs_data.json`). To uninstall, delete the folder.
+
+## Run from source
+
+Requires Python 3.10–3.13 (`demoparser2` does not support newer versions yet).
+
+```
+pip install -r requirements.txt
+python cs_coach_app.py
+```
+
+Command line (no window):
+
+```
+python cs_coach.py --steamid YOUR_STEAMID64 --folder "C:\path\to\demos"
+```
+
+To build the executable yourself, run `Crea_App.bat` (PyInstaller), or use the GitHub Actions workflow in `.github/workflows/build.yml`.
+
+## Disclaimer
+
+This is an unofficial, fan-made tool. It is not affiliated with, endorsed by or sponsored by Valve Corporation. Counter-Strike and CS2 are trademarks of Valve.
+
+The executable is **not code-signed**, so Windows SmartScreen may warn you ("unrecognized app") and some antivirus programs may flag programs built with PyInstaller by mistake. You can always read the source code here and build the app yourself.
+
+**Use it at your own risk.** By downloading, opening or installing any file from this repository you accept that you are solely responsible for what you run on your computer. The software is provided "as is", without warranty of any kind (see the license).
+
+Ratings, KAST and reference values are estimates based on public formulas, not official data. Coaching advice follows public guides and is a suggestion, not a guarantee of results.
+
+## License
+
+Released under the [MIT License](LICENSE).
