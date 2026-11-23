@@ -4,7 +4,7 @@ CS2 demo parser -> JSON per la dashboard "CS Coach".
 
 Uso:
     pip install demoparser2 pandas
-    python cs_parser.py --steamid IL_TUO_STEAMID64 --out cs_data.json  demo1.dem demo2.dem ...
+    python cs_parser.py --steamid YOUR_STEAMID64 --out cs_data.json  demo1.dem demo2.dem ...
 
 Il JSON prodotto si carica nella dashboard con il pulsante "Importa dati".
 Si possono unire più esecuzioni: la dashboard riconosce le partite già presenti (campo id).
@@ -584,6 +584,24 @@ UTIL_INV = {"Flashbang": "flash", "Smoke Grenade": "smoke", "HE Grenade": "he", 
             "Incendiary Grenade": "molotov", "Decoy Grenade": "decoy"}
 
 
+def _look(r):
+    """Direzione dello sguardo (gradi), inclinazione e se e' accovacciato; vuoto se la libreria non li fornisce."""
+    out = {}
+    try:
+        yw = getattr(r, "yaw", None)
+        if yw is not None and yw == yw:
+            out["yw"] = round(float(yw), 1)
+            pt = getattr(r, "pitch", None)
+            if pt is not None and pt == pt:
+                out["pt"] = round(float(pt), 1)
+        dk = getattr(r, "ducking", None)
+        if dk is not None and dk == dk:
+            out["cr"] = bool(dk)
+    except Exception:
+        pass
+    return out
+
+
 def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=None, det=None, round_of=None):
     """Per ogni mia morte salva il contesto: posizioni di tutti, scia, compagni vicini, utility rimasta.
     La classificazione degli errori avviene nella dashboard, cosi' si puo' cambiare senza rileggere le demo."""
@@ -595,8 +613,12 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
         base = max(1, e["tick"] - 1)
         for k in range(0, 9):
             need.add(max(1, base - k * STEP))
-    df = p.parse_ticks(["X", "Y", "Z", "team_num", "health", "last_place_name", "inventory", "flash_duration",
-                        "active_weapon_name"], ticks=sorted(need))
+    base_props = ["X", "Y", "Z", "team_num", "health", "last_place_name", "inventory", "flash_duration",
+                  "active_weapon_name"]
+    try:   # direzione dello sguardo e accovacciato: se la libreria non li ha, si prosegue senza
+        df = p.parse_ticks(base_props + ["yaw", "pitch", "ducking"], ticks=sorted(need))
+    except Exception:
+        df = p.parse_ticks(base_props, ticks=sorted(need))
     df["steamid"] = df["steamid"].apply(sid)
     by_tick = {}
     for row in df.itertuples(index=False):
@@ -644,7 +666,8 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
         for s, r in snap.items():
             tm = "me" if s == me_id else ("mate" if int(nz(r.team_num)) == myteam else "foe")
             pos.append({"n": str(names.get(s, s))[:14], "x": int(float(r.X)), "y": int(float(r.Y)), "tm": tm,
-                        "k": s == e.get("ksid"), "pl": str(nz(r.last_place_name, "")), "w": wn(str(nz(r.active_weapon_name, "")).lower().replace("-", "").replace(" ", ""))})
+                        "k": s == e.get("ksid"), "pl": str(nz(r.last_place_name, "")), "w": wn(str(nz(r.active_weapon_name, "")).lower().replace("-", "").replace(" ", "")),
+                        **_look(r)})
         kr = snap.get(e.get("ksid")) if e.get("ksid") else None
         pt = plant_tick.get(e["r"])
         e["c"] = {

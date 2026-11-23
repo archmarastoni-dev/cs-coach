@@ -1169,6 +1169,79 @@ function recentBlock(e){
   const notes = f.notes.length ? `<p><b>Lettura:</b> ${f.notes.map(esc).join(' ')}</p>` : '';
   return `<div class="iss ok" style="border-color:#9aa7b8"><h4>Cosa è successo prima e dopo (da −12 s a +6 s)</h4>${body}${notes}${!rc.full&&rc.lines.length?'<p class="sub">Qui compaiono solo le tue azioni: i dati di compagni e avversari esistono solo per le demo analizzate dopo questo aggiornamento.</p>':''}</div>`;
 }
+function posAnalysis(e){
+  const c = e.c; if(!c || !c.pos) return null;
+  const me_ = c.pos.find(p=>p.tm==='me'), ki = c.pos.find(p=>p.k);
+  if(!me_ || !ki) return null;
+  const tr = c.tr||[], ang = (a,b)=>Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+  const dif = (a,b)=>{let d=Math.abs(a-b)%360; return d>180?360-d:d;};
+  const dist = (a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const R = {lines:[], peek:'', tags:[]};
+  // 1) tipo di peek dalla scia
+  const sp = c.sp||0;
+  let dk0=null, dk1=null, rev=false, path=0;
+  if(tr.length>=3){
+    const n = tr.length, a = tr[Math.max(0,n-3)], b = tr[n-1];
+    dk0 = Math.hypot(a[0]-ki.x,a[1]-ki.y); dk1 = Math.hypot(b[0]-ki.x,b[1]-ki.y);
+    for(let i=1;i<n;i++) path += Math.hypot(tr[i][0]-tr[i-1][0],tr[i][1]-tr[i-1][1]);
+    let last=null;
+    for(let i=1;i<n;i++){ const dx=tr[i][0]-tr[i-1][0], dy=tr[i][1]-tr[i-1][1]; if(Math.hypot(dx,dy)<80) continue; const a2=Math.atan2(dy,dx)*180/Math.PI; if(last!=null && dif(a2,last)>120) rev=true; last=a2; }
+  }
+  const avg = tr.length>1 ? path/((tr.length-1)*0.5) : sp;
+  const adv = dk0!=null ? dk0-dk1 : 0;
+  if(tr.length<3) R.peek='n/d';
+  else if(rev){ R.peek='jiggle'; R.lines.push('Peek: hai cambiato direzione di colpo negli ultimi secondi (jiggle o affaccio e ritorno). Tecnica giusta contro uno sniper o per far sprecare utility, ma se ti è costata la vita l\'avversario aveva già il mirino sul punto di rientro.'); }
+  else if(avg<45){ R.peek='fermo'; R.lines.push('Peek: eri fermo (tenevi l\'angolo). Hai atteso l\'avversario: va bene se il tuo mirino era già sul punto giusto e se un compagno poteva coprirti.'); }
+  else if(adv>=150 && sp>110){ R.peek='avanzata'; R.lines.push(`Peek: stavi avanzando verso ${esc(e.killer)} (ti sei avvicinato di ${Math.round(adv/U_M)} m in 1 s) a ${sp} u/s. È un peek largo: l'avversario, già fermo, vede prima e spara da fermo.`); }
+  else if(adv<=-150){ R.peek='ritirata'; R.lines.push(`Peek: ti stavi allontanando da ${esc(e.killer)} (ritirata di ${Math.round(-adv/U_M)} m in 1 s). Ti ha colpito mentre ti ritiravi: spesso conviene rompere la linea di tiro invece di correre in rettilineo.`); }
+  else { R.peek='laterale'; R.lines.push(`Peek: movimento laterale/di riposizionamento a ${sp} u/s, senza avvicinarti o allontanarti dall'avversario.`); }
+  // 2) avversari: esposizione e crossfire
+  const foes = c.pos.filter(p=>p.tm==='foe'), fd = foes.map(p=>({p, d:dist(me_,p), b:ang(me_,p)})).sort((a,b)=>a.d-b.d);
+  const close = fd.filter(x=>x.d<=2500);
+  let xf = false;
+  for(let i=0;i<close.length&&!xf;i++) for(let j=i+1;j<close.length;j++) if(dif(close[i].b,close[j].b)>50){ xf=true; break; }
+  if(xf){ R.tags.push('crossfire'); R.lines.push(`Avversari: ${close.length} nemici entro ${Math.round(2500/U_M)} m da angolazioni diverse (oltre 50° tra loro): eri esposto in crossfire, non potevi guardare tutti gli angoli.`); }
+  else if(close.length>=2) R.lines.push(`Avversari: ${close.length} nemici vicini ma dalla stessa direzione: uno solo alla volta poteva sparare, il duello era gestibile con utility o con un compagno già puntato.`);
+  else if(foes.length>=2 && !close.length) R.lines.push('Avversari: nessun altro nemico vicino, il duello era 1 contro 1 a distanza.');
+  // 3) compagni
+  const mates = c.pos.filter(p=>p.tm==='mate').map(p=>({p,d:dist(me_,p),b:ang(me_,p),dk:dist(p,ki)})).sort((a,b)=>a.d-b.d);
+  const kb = ang(me_,ki), myDk = dist(me_,ki);
+  if(!mates.length) R.lines.push('Compagni: eri l\'ultimo vivo della squadra.');
+  else {
+    const n0 = mates[0], off = dif(n0.b,kb), md = Math.round(n0.d/U_M);
+    const where = off<30?'dietro di te, sulla stessa linea di tiro (può solo seguirti, non crea crossfire)':off<=110?'di lato (angolo utile per un crossfire)':'dal lato opposto all\'avversario (non vedeva il tuo duello)';
+    R.lines.push(`Compagni: il più vicino (${esc(n0.p.n)}) era a ${md} m, ${where}.`);
+    const ahead = mates.filter(m=>m.dk<myDk-100).length;
+    if(!ahead && mates.length) { R.tags.push('piuavanti'); R.lines.push('Eri il giocatore più avanti verso l\'avversario: hai preso il contatto per primo, senza nessuno più avanti a farti da scudo.'); }
+    const cl = mates.filter(m=>m.d<=350).length;
+    if(cl>=2) R.lines.push(`Eri raggruppato con ${cl} compagni (entro ~7 m): una sola granata o uno spray vi prende tutti, meglio distanziarsi.`);
+    if(off>=30&&off<=110&&n0.d<=1300&&!e.traded) R.lines.push('Il compagno era in posizione per il trade ma non l\'ha fatto: probabilmente stava guardando altrove o è arrivato in ritardo.');
+  }
+  // 4) dati di vista (demo nuove)
+  if(me_.yw!=null && ki.yw!=null){
+    const toMe = ang(ki,me_), toKi = ang(me_,ki);
+    const kErr = dif(ki.yw,toMe), mErr = dif(me_.yw,toKi);
+    R.lines.push(`Mirino al momento della morte: ${Math.round(mErr)}° dall'avversario; lui aveva il mirino a ${Math.round(kErr)}° da te${kErr<=15?' (ti stava già puntando: pre-aim sul tuo angolo)':''}.`);
+    if(me_.cr) R.lines.push('Eri accovacciato quando sei morto.');
+  }
+  return R;
+}
+function posSummary(L){
+  const A = L.map(it=>posAnalysis(it.e)).filter(Boolean); if(A.length<5) return '';
+  const n = A.length, cnt = k=>A.filter(r=>r.peek===k).length, tg = k=>A.filter(r=>r.tags.includes(k)).length;
+  const items = [['Avanzata verso il nemico',cnt('avanzata'),'#ff5c5c'],['Fermo ad un angolo',cnt('fermo'),'#4aa3ff'],['Cambio direzione (strafe/jiggle)',cnt('jiggle'),'#e8c53a'],['Ritirata',cnt('ritirata'),'#9aa7b8'],['Laterale',cnt('laterale'),'#2bd47d']].filter(x=>x[1]);
+  const pm = (k)=>pc(k/n);
+  const adv = cnt('avanzata'), xf = tg('crossfire'), fw = tg('piuavanti');
+  const tips = [];
+  if(adv/n>=0.3) tips.push(`Nel ${pm(adv)} delle morti stavi avanzando verso l'avversario: apri gli angoli con shoulder peek e utility invece di un peek largo.`);
+  if(xf/n>=0.25) tips.push(`Nel ${pm(xf)} dei casi avevi nemici da più angolazioni (crossfire): evita posizioni in cui più angoli ti vedono e fatti coprire.`);
+  if(fw/n>=0.4) tips.push(`Nel ${pm(fw)} dei casi eri il più avanti della squadra: aspetta che un compagno sia accanto prima di prendere il contatto.`);
+  return `<div class="card"><h2>Peek e posizionamento alla morte</h2><div class="sub">Su ${n} morti analizzate: come ti muovevi, dove erano avversari e compagni.</div>${stackBar(items)}${tips.length?`<ul style="margin:10px 0 0;padding-left:20px">${tips.map(x=>`<li style="margin:4px 0">${esc(x)}</li>`).join('')}</ul>`:''}<p class="sub" style="margin-top:8px">Limite: non c'è la geometria della mappa, quindi le coperture reali non sono misurate.</p></div>`;
+}
+function posBlock(e){
+  const R = posAnalysis(e); if(!R) return '';
+  return `<div class="iss ok" style="border-color:#c58bff"><h4>Peek e posizionamento</h4>${R.lines.map(l=>`<p>• ${l}</p>`).join('')}<p class="sub">Limite: coperture e linee di tiro reali richiedono la geometria della mappa, che qui non c'è; le conclusioni si basano sulle posizioni di giocatori e compagni.</p></div>`;
+}
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;
   const bad = rev.some(r=>r.sev==='alta'), tag = e.traded ? 'tradata' : 'non tradata';
@@ -1177,6 +1250,7 @@ function deathCard(it){
     <div><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
       <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div>
       ${recentBlock(e)}
+      ${posBlock(e)}
       ${it.rev.map(r=>`<div class="iss ${SEV[r.sev]}"><h4>${esc(r.title)}</h4><p>${esc(r.why)}</p><p class="fix"><b>Cosa fare:</b> ${esc(r.fix)}</p></div>`).join('')}
       <div class="iss ok" style="border-color:#4aa3ff"><h4>Tattica consigliata per un round simile</h4>${tactics(e,rev).map(t=>`<p>• ${esc(t)}</p>`).join('')}<p class="srcs">Fonti: ${srcLinks([...new Set(rev.flatMap(r=>SRC_BY[r.id]||[]))])||'vedi elenco in fondo alla pagina'}</p></div></div></div></div>`;
 }
@@ -1266,6 +1340,7 @@ function viewErrori(ms){
     ${top.length?`<ol style="margin:6px 0 0;padding-left:20px">${top.map(k=>`<li style="margin:4px 0"><b>${FOCUS[k]}</b> (${ECAT[k]}: ${cnt[k]} morti su ${L.length}, ${pc(cnt[k]/L.length)}). <span class="sub">Come allenarlo: ${esc(DRILL[k]||'')}</span></li>`).join('')}</ol>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
     <div class="chips" style="margin-top:14px"><button data-ecat="all" aria-pressed="${state.eCat==='all'}">Tutte (${L.length})</button>${order.map(k=>`<button data-ecat="${k}" aria-pressed="${state.eCat===k}">${ECAT[k]} (${cnt[k]})</button>`).join('')}</div></div>
   ${aim}
+  ${posSummary(L)}
   ${workshopCard(ms,cnt,L)}
   <div class="grid g2">${timingBars(ms)}${placeTable(L)}</div>
   <h2 style="margin:22px 0 8px">Le tue morti, una per una</h2>
