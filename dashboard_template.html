@@ -606,12 +606,149 @@ function matchAnalysis(m){
   <div class="card"><h2>Verifica dei dati</h2><div class="sub">Controllo che le diverse fonti dentro la demo diano gli stessi numeri${tk?` (${tk} morti da fuoco amico incluse negli eventi)`:''}. Dettaglio contesto morti: ${ctxN}/${m.me.deaths.length}.</div>
     <table><thead><tr><th>Controllo</th><th>Valore A</th><th>Valore B</th><th>Esito</th></tr></thead><tbody>${chk.join('')}</tbody></table></div>`;
 }
+/* ====================== ECONOMIA ====================== */
+const RIFLE = new Set(['ak47','m4a1','m4a1_silencer','m4a4','galilar','famas','aug','sg556']);
+const SMGW = new Set(['mp9','mac10','mp7','mp5sd','ump45','bizon']);
+const tierOf = (avg, pistol) => pistol ? 'Pistol' : avg < 1500 ? 'Eco' : avg < 3800 ? 'Semi/Force' : 'Full buy';
+const WLONG = {ak47:'AK-47',m4a1:'M4A1',m4a1silencer:'M4A1-S',m4a4:'M4A4',galilar:'Galil',famas:'FAMAS',aug:'AUG',sg556:'SG 553',awp:'AWP',ssg08:'SSG 08',scar20:'SCAR-20',g3sg1:'G3SG1',mp9:'MP9',mac10:'MAC-10',mp7:'MP7',mp5sd:'MP5-SD',ump45:'UMP-45',bizon:'PP-Bizon',p90:'P90',nova:'Nova',xm1014:'XM1014',mag7:'MAG-7',sawedoff:'Sawed-Off',negev:'Negev',m249:'M249',deagle:'Deagle',p250:'P250',fiveseven:'Five-SeveN',tec9:'Tec-9',cz75a:'CZ75',elite:'Dual Berettas',revolver:'R8',glock:'Glock',hkp2000:'P2000',usps:'USP-S',uspsilencer:'USP-S'};
+const PRIMARY = new Set(['ak47','m4a1','m4a1silencer','m4a4','galilar','famas','aug','sg556','awp','ssg08','scar20','g3sg1','mp9','mac10','mp7','mp5sd','ump45','bizon','p90','nova','xm1014','mag7','sawedoff','negev','m249']);
+const SMG_ONLY = new Set(['mp9','mac10','mp7','mp5sd','ump45','bizon','p90','nova','xm1014','mag7','sawedoff']);
+const RIF_ONLY = new Set(['ak47','m4a1','m4a1silencer','m4a4','galilar','famas','aug','sg556']);
+function buyInfo(b){
+  if(!b) return null;
+  const inv = b.inv||[], prim = inv.find(i=>PRIMARY.has(i)), pist = inv.filter(i=>WLONG[i]&&!PRIMARY.has(i));
+  const g = {fl:inv.filter(i=>i==='flashbang').length, sm:inv.filter(i=>i==='smokegrenade').length, he:inv.filter(i=>i==='hegrenade').length, mo:inv.filter(i=>i==='molotov'||i==='incgrenade').length};
+  const ng = g.fl+g.sm+g.he+g.mo;
+  const arm = b.ar>0 ? (b.hel?'giubbotto+elmetto':'solo giubbotto') : 'nessuna armatura';
+  const parts = [prim?WLONG[prim]:(pist[0]?WLONG[pist[0]]+' (pistola)':'solo coltello'), arm, ...(b.kit?['kit']:[]), ng?`${ng} granate (${[g.fl&&g.fl+' flash',g.sm&&'smoke',g.he&&'HE',g.mo&&'molotov'].filter(Boolean).join(', ')})`:'nessuna granata'];
+  return {prim, ng, g, arm, hasArm:b.ar>0, txt:parts.join(' · '), st:b.st, sp:b.sp, mo:b.mo};
+}
+function econMatch(m){
+  const rs = m.rounds.slice().sort((a,b)=>a.r-b.r), out = [];
+  let meter = 1, prevHalf = null;
+  for(let i=0;i<rs.length;i++){
+    const r = rs[i];
+    if(r.half !== prevHalf){ meter = 1; prevHalf = r.half; }          // a metà partita la striscia riparte
+    const pistol = (r.r===1 || r.r===13);
+    const nT = Math.max(1, m.players.filter(p=>p.mine_team).length) , nE = Math.max(1, m.players.filter(p=>!p.mine_team).length);
+    const tAvg = r.team_equip/nT, eAvg = r.enemy_equip/nE, oAvg = nT>1 ? (r.team_equip - r.equip)/(nT-1) : 0;
+    const x = {r, i, pistol, meter, bonus: 1400+500*meter, tAvg, eAvg, oAvg, tier: tierOf(tAvg,pistol), eTier: tierOf(eAvg,pistol), flags: []};
+    // soldi non spesi (a fine fase di acquisto) mentre i compagni sono corti
+    if(!pistol && r.money >= 2700 && oAvg < 3000) x.flags.push({id:'drop', bad:true});
+    if(!pistol && r.equip >= 3800 && oAvg < 2000) x.flags.push({id:'lone', bad:true});
+    if(!pistol && r.equip < 1500 && oAvg >= 3800 && r.money >= 3000) x.flags.push({id:'broke_rich', bad:true});
+    const bi = buyInfo(r.buy); x.bi = bi;
+    if(bi){
+      const tm = r.buy.tm||[];
+      if(!pistol && bi.prim && !bi.hasArm && bi.sp>=2000) x.flags.push({id:'noarmor', bad:true});
+      if(!pistol && x.tier==='Full buy' && bi.prim && RIF_ONLY.has(bi.prim) && bi.ng===0) x.flags.push({id:'noutil', bad:true});
+      if(!pistol && bi.prim==='awp' && x.tier!=='Full buy') x.flags.push({id:'awpeco', bad:true});
+      if(tm.length){
+        const short = tm.filter(([eq,mo])=>eq<2000).length;
+        x.short = short; x.mateMoney = tm.map(a=>a[1]);
+        const idx = x.flags.findIndex(f=>f.id==='drop'||f.id==='lone');
+        if(idx>=0 && x.flags[idx].id==='drop' && short===0) x.flags.splice(idx,1);       // nessuno corto: niente drop da fare
+        if(!pistol && bi.mo>=2700 && short>=1 && !x.flags.some(f=>f.id==='drop')) x.flags.push({id:'drop', bad:true});
+      }
+    }
+    out.push(x);
+    meter = r.won ? Math.max(0, meter-1) : Math.min(4, meter+1);
+  }
+  // sequenze
+  for(let i=1;i<out.length;i++){
+    const a = out[i-1], b = out[i];
+    if(!a.pistol && !b.pistol && a.tier==='Semi/Force' && b.tier==='Semi/Force' && !a.r.won && !b.r.won && a.r.half===b.r.half) b.flags.push({id:'forcechain', bad:true});
+    if(!a.r.won && a.bonus>=2900 && b.tier==='Semi/Force' && !b.pistol && b.r.half===a.r.half && !b.r.won) b.flags.push({id:'forcehigh', bad:true, pb:a.bonus});
+    if(a.r.half===b.r.half && !a.r.won && a.tier==='Eco' && b.tier==='Full buy' && b.r.won) b.flags.push({id:'ecook', bad:false});
+  }
+  // anti-eco: nemici in eco e noi no
+  for(const x of out){
+    const r = x.r;
+    if(!x.pistol && x.eTier==='Eco' && x.tier!=='Eco'){
+      const ks = m.me.kills.filter(e=>e.r===r.r), rifk = ks.filter(e=>RIFLE.has(e.w)).length, smgk = ks.filter(e=>SMGW.has(e.w)).length;
+      x.anti = {rifk, smgk, n: ks.length};
+      if(rifk) x.flags.push({id:'antieco_rifle', bad:true, n:rifk});
+    }
+    if(!r.won && r.survived && r.equip>=3000) x.flags.push({id:'saved', bad:false});
+    if(x.eTier==='Full buy' && x.tier==='Eco' && r.won) x.flags.push({id:'ecowin', bad:false});
+    if(x.eTier==='Eco' && x.tier!=='Eco' && !x.pistol && !r.won) x.flags.push({id:'antieco_lost', bad:true});
+  }
+  return out;
+}
+const ECOTXT = {
+  drop:  x => x.short!=null ? `Avevi ${x.bi.mo}$ non spesi e ${x.short} compagni sotto 2000$ di equipaggiamento: potevi fare drop di un'arma.` : `Avevi ${x.r.money}$ non spesi mentre i compagni avevano in media circa ${Math.round(x.oAvg)}$ di equipaggiamento.`,
+  lone:  x => `Hai fatto un full buy (${x.r.equip}$) con compagni a circa ${Math.round(x.oAvg)}$: un fucile da solo vince raramente il round.`,
+  broke_rich: x => `Squadra in full buy (compagni circa ${Math.round(x.oAvg)}$) e tu con ${x.r.money}$ in tasca e solo ${x.r.equip}$ di equipaggiamento.`,
+  forcechain: x => `Seconda force di fila persa: due round a spendere tutto senza ottenere il full buy.`,
+  forcehigh: x => `Force dopo una sconfitta che aveva già dato ${x.pb}$ di loss bonus: risparmiando un round il full buy era più vicino.`,
+  ecook: x => `Dopo un eco hai vinto il full buy successivo: il risparmio ha pagato.`,
+  antieco_rifle: x => `Contro un eco hai ucciso con il fucile ${x.n} volte (300$ a kill): con un SMG sarebbero stati 600$ a kill.`,
+  antieco_lost: x => `Round perso contro una squadra in eco: è il più costoso dal punto di vista dell'economia (regala armi e bonus).`,
+  saved: x => `Round perso ma sei sopravvissuto con ${x.r.equip}$ di equipaggiamento: arma salvata per il round dopo.`,
+  noarmor: x => `Hai comprato l'arma (${x.bi.txt.split(' · ')[0]}) senza armatura: l'armatura va comprata per prima in ogni round di acquisto.`,
+  noutil: x => `Full buy senza nessuna granata: smoke e flash servono per entrare o difendere con il trade.`,
+  awpeco: x => `AWP in un round non da full buy: rende solo 100$ a kill e se la perdi regali 4750$.`,
+  ecowin: x => `Round vinto in eco contro un full buy nemico: ottima resa economica (armi nemiche e blocco del loss bonus).`
+};
+function econSummary(m){
+  const E = econMatch(m), T = {}, cnt = {};
+  for(const x of E){ const k = x.tier; (T[k] = T[k]||{n:0,w:0}); T[k].n++; if(x.r.won) T[k].w++; for(const f of x.flags) cnt[f.id] = (cnt[f.id]||0)+1; }
+  const lost = E.filter(x=>!x.r.won), rich = sum(lost, x=>x.r.money);
+  const maxStreak = (()=>{ let c=0,mx=0; for(const x of E){ c = x.r.won?0:c+1; mx=Math.max(mx,c); } return mx; })();
+  const anti = E.filter(x=>x.anti), antiW = anti.filter(x=>x.r.won).length;
+  return {E, T, cnt, rich, maxStreak, anti, antiW};
+}
+function econCards(m){
+  const S = econSummary(m), {E,T,cnt} = S;
+  const good = [], bad = [], info = [];
+  const rl = id => E.filter(x=>x.flags.some(f=>f.id===id)).map(x=>x.r.r).join(', ');
+  const tr = k => T[k] ? `${T[k].w}/${T[k].n}` : '–';
+  if(cnt.drop) bad.push(['Soldi non spesi mentre la squadra era corta', `Round ${rl('drop')}: avevi 2700$ o più a fine acquisti e i compagni erano sotto i 3000$ di media. I soldi in tasca valgono zero se perdi: compra o dai un'arma a chi è corto (drop).`, ['eco2','eco4','eco5']]);
+  if(cnt.noarmor) bad.push(['Arma senza armatura', `Round ${rl('noarmor')}: hai comprato l'arma ma non l'armatura. La regola dei coach è armatura prima di tutto: senza, ti uccidono con meno colpi e il nemico incassa lo stesso.`, ['eco2']]);
+  if(cnt.noutil) bad.push(['Full buy senza granate', `Round ${rl('noutil')}: nessuna utility con un full buy. Almeno una smoke e una flash.`, ['eco1','eco2']]);
+  if(cnt.awpeco) bad.push(['AWP in round non pieno', `Round ${rl('awpeco')}: l'AWP costa 4750$ e rende solo 100$ per kill.`, ['eco2']]);
+  if(cnt.lone) bad.push(['Full buy da solo', `Round ${rl('lone')}: ti sei equipaggiato a pieno con la squadra in eco o semi-eco. Con la squadra sotto i 2000$ di media allinea l'acquisto agli altri o fai drop.`, ['eco2']]);
+  if(cnt.forcechain) bad.push(['Force di fila senza risultato', `Round ${rl('forcechain')}: due semi-buy o force consecutive, entrambe perse. Dopo la prima sconfitta il caso migliore era un eco per tornare a un full buy.`, ['eco2','eco3']]);
+  if(cnt.forcehigh) bad.push(['Force con loss bonus alto', `Round ${rl('forcehigh')}: dopo una sconfitta il bonus era già a 2900$ o più e la squadra ha forzato; con un eco il full buy per tutti sarebbe stato più vicino (conta anche quanto avevano i compagni, che qui non è visibile).`, ['eco2','eco3']]);
+  if(S.anti.length){
+    const rifk = sum(S.anti, x=>x.anti.rifk), smgk = sum(S.anti, x=>x.anti.smgk);
+    if(rifk) bad.push(['Fucile contro eco', `In ${S.anti.length} round contro squadre in eco hai fatto ${rifk} kill con il fucile (300$) e ${smgk} con SMG (600$). Contro un eco un SMG uccide altrettanto bene e rende il doppio per kill (+${rifk*300}$ in questa partita).`, ['eco1','eco2']]);
+    info.push(`Round contro squadre in eco: ${S.antiW} vinti su ${S.anti.length}. Perderli è la causa più costosa di economia: regalano armi e bonus.`);
+  }
+  if(cnt.antieco_lost) bad.push(['Round persi contro un eco', `Round ${rl('antieco_lost')}: contro un eco non serve forzare i duelli, servono spazio e trade; muori e regali un'arma.`, ['eco1','eco2']]);
+  if(cnt.saved) good.push(['Armi salvate', `Round ${rl('saved')}: sei sopravvissuto con equipaggiamento da full buy a round perso, così il round dopo parti già con l'arma.`, ['eco5']]);
+  if(cnt.ecowin) good.push(['Eco vinti contro un full buy', `Round ${rl('ecowin')}.`, ['eco1']]);
+  if(cnt.ecook) good.push(['Eco che hanno pagato', `Round ${rl('ecook')}: dopo un eco hai vinto il full buy.`, ['eco1']]);
+  const p = E.filter(x=>x.pistol);
+  for(const x of p){ const nx = E[x.i+1]; if(nx && nx.r.half===x.r.half){ (x.r.won ? good : info).push(x.r.won ? ['Pistol vinto', `Round ${x.r.r} vinto. Round ${nx.r.r} (${nx.tier}, nemici ${nx.eTier}): ${nx.r.won?'vinto, hai convertito il vantaggio':'perso: il pistol vinto va convertito con una buona anti-eco'}.`, ['eco1','eco3']] : `Pistol perso (round ${x.r.r}): il round dopo la squadra era ${nx.tier}${nx.tier==='Eco'?' (scelta corretta con il loss bonus in crescita)':''}, esito ${nx.r.won?'vinto':'perso'}.`); } }
+  if(S.maxStreak>=4) info.push(`Striscia massima di round persi: ${S.maxStreak}. Con 5 sconfitte il bonus arriva al massimo (3400$): i round dopo sono pieni, il problema è non vincere quelli a bonus basso.`);
+  const li = a => a.map(([h,b,s])=>`<div class="iss ${a===good?'ok':'media'}"><h4>${h}</h4><p>${b}</p><p class="sub">Fonti: ${(s||[]).map(k=>`<a href="${SRC[k][1]}" target="_blank" rel="noopener noreferrer">${esc(SRC[k][0].split(' (')[0])}</a>`).join(' · ')}</p></div>`).join('');
+  const tiers = ['Pistol','Eco','Semi/Force','Full buy'].map(k=>`<tr><td>${k}</td><td>${T[k]?T[k].n:0}</td><td>${T[k]?pc(T[k].w/T[k].n):'–'}</td></tr>`).join('');
+  const rows = E.map(x=>{ const r = x.r, fl = x.flags.map(f=>`<span class="pill ${f.bad?'L':'W'}" title="${esc(ECOTXT[f.id](Object.assign({n:f.n},x)))}">${({drop:'soldi non spesi',noarmor:'senza armatura',noutil:'senza utility',awpeco:'AWP in eco',lone:'full da solo',broke_rich:'sotto-equipaggiato',forcechain:'force di fila',forcehigh:'force con bonus alto',ecook:'eco ok',antieco_rifle:'fucile vs eco',antieco_lost:'perso vs eco',saved:'arma salvata',ecowin:'eco vinto'})[f.id]}</span>`).join(' ');
+    return `<tr><td>${r.r}</td><td><span class="side ${r.side}">${r.side}</span></td><td><span class="pill ${r.won?'W':'L'}">${r.won?'Vinto':'Perso'}</span></td><td>${x.tier}<div class="sub" style="margin:0">media ${Math.round(x.tAvg)}$ · tu ${r.equip}$</div></td><td>${x.eTier}<div class="sub" style="margin:0">media ${Math.round(x.eAvg)}$</div></td><td style="text-align:left;white-space:normal;max-width:260px">${x.bi?esc(x.bi.txt)+`<div class="sub" style="margin:0">partivi con ${x.bi.st}$, speso ${x.bi.sp}$${x.short!=null?` · compagni sotto 2000$: ${x.short}`:''}</div>`:'<span class="sub">non registrato</span>'}</td><td>${x.bi?x.bi.mo:r.money}$</td><td>${x.bonus}$</td><td style="text-align:left;white-space:normal">${fl}</td></tr>`; }).join('');
+  return `<div class="card"><h2>Economia della partita</h2><div class="sub">Il valore è quello a inizio round (dopo gli acquisti). Eco sotto 1500$ di media a giocatore, semi/force fino a 3800$, full buy sopra. Sono soglie indicative del tool ricavate dalle guide sotto: il dettaglio di cosa hai comprato (armi, armatura, granate) compare solo per le partite analizzate con la versione nuova del programma, per le altre vedi “non registrato”.</div>
+    <div class="grid g2"><div><table><thead><tr><th>Tipo di buy (squadra)</th><th>Round</th><th>Vinti</th></tr></thead><tbody>${tiers}</tbody></table></div>
+    <div><p>• Soldi rimasti in tasca a fine acquisti, sommati sui round persi: <b>${S.rich}$</b></p><p>• Striscia massima di sconfitte: <b>${S.maxStreak}</b></p><p>• Anti-eco: <b>${S.antiW}/${S.anti.length}</b> vinti</p></div></div></div>
+    ${bad.length?`<div class="card"><h2>Cosa migliorare nell'economia</h2>${li(bad)}</div>`:''}
+    ${good.length?`<div class="card"><h2>Cosa è andato bene</h2>${li(good)}</div>`:''}
+    ${info.length?`<div class="card"><h2>Altre note</h2>${info.map(s=>`<p>• ${s}</p>`).join('')}</div>`:''}
+    <div class="card"><h2>Round per round</h2><div class="sub">Passa sopra le etichette per il dettaglio. Il loss bonus è quello che avresti incassato perdendo quel round (parte da 1900$, sale di 500$ a sconfitta fino a 3400$, scende di 500$ a vittoria, riparte a metà partita).</div>
+      <div class="scroll"><table class="timeline"><thead><tr><th>#</th><th>Lato</th><th>Esito</th><th>Noi</th><th>Loro</th><th>Cosa hai comprato</th><th>Tuoi $ a fine acquisti</th><th>Loss bonus</th><th>Note</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="card"><h2>Come si ragiona sull'economia (fonti)</h2><ul style="margin:6px 0 0;padding-left:20px">
+      <li>Ogni giocatore parte con 800$, massimo 16000$. Vittoria 3250$ (3500$ con bomba esplosa o disinnescata); sconfitta da 1400$ a 3400$ in base alla striscia; T che piantano e perdono incassano un bonus.</li>
+      <li>Kill: 300$ fucile e pistola, 600$ SMG, 900$ pompa, 100$ AWP, 1500$ coltello: contro un eco conviene un SMG.</li>
+      <li>Regole pratiche: sotto 2000$ si risparmia, da circa 4000$ si fa full buy; il force ha senso a fine tempo, a un round dal match point o contro nemici deboli. Non comprare da solo un full se due compagni sono in eco, e fai drop se hai soldi in più.</li>
+      <li>Cosa guardano gli analisti: vittorie ai pistol e conversione del round dopo, resa per tipo di acquisto (eco, semi/force, full), sincronia degli acquisti, soldi non spesi nei round persi e valore economico dei round vinti da eco.</li></ul>
+      <p class="sub">Alcune guide divergono su soglie esatte (il full buy va da 4000$ a 5300$ a seconda della fonte e della squadra) e una afferma che i soldi restano a metà partita: nei tuoi dati il round 13 parte con equipaggiamento da pistol, quindi qui trattato come ripartenza.</p></div>`;
+}
 function viewMatch(m){
   const sc = m.score, partial = !m.complete ? `<div class="note">Questa partita sembra incompleta (nessuna squadra ha raggiunto 13 round): potrebbe essere finita per resa o abbandono.</div>` : '';
-  const tabs = [['analisi','Analisi'],['score','Scoreboard'],['rounds','Round per round'],['map','Mappa']];
+  const tabs = [['analisi','Analisi'],['eco','Economia'],['score','Scoreboard'],['rounds','Round per round'],['map','Mappa']];
   let body = '';
   if(state.selView==='analisi'){
     body = matchAnalysis(m);
+  } else if(state.selView==='eco'){
+    body = econCards(m);
   } else if(state.selView==='score'){
     const adv = state.mode==='adv';
     const mk = list => list.map(p => `<tr class="${p.sid===SID?'me':''}"><td>${esc(p.name)}</td><td>${f1(p.rating,2)}</td><td>${p.kills}</td><td>${p.assists}</td><td>${p.deaths}</td><td>${p.kills-p.deaths>0?'+':''}${p.kills-p.deaths}</td><td>${f1(p.damage/p.rounds,0)}</td><td>${pc(p.kast/p.rounds)}</td><td>${pc(p.kills?p.hs/p.kills:NaN)}</td>${adv?`<td>${p.opening_kills}-${p.opening_deaths}</td><td>${p.trade_kills}</td><td>${p.clutch_won}/${p.clutch_att}</td><td>${p.enemies_flashed}</td><td>${p.thrown_smoke}</td><td>${f1(p.dmg_he+p.dmg_molotov,0)}</td>`:''}</tr>`).join('');
@@ -953,6 +1090,11 @@ const DRILL = {
   dopokill:'Dopo ogni kill (o trade) fai un passo indietro o cambia angolo prima del prossimo contatto: l\'avversario successivo ha già il mirino sul tuo punto.'
 };
 const SRC = {
+  eco1:['Guida all\'economia di CS2 (Esports Insider, gen 2026)','https://esportsinsider.com/cs2-economy-guide'],
+  eco2:['Soglie di acquisto e trappola del force buy (Switchblade Gaming)','https://www.switchbladegaming.com/cs2/economy-guide/'],
+  eco3:['Come leggere l\'economia: loss bonus e tipi di buy (Hotspawn)','https://www.hotspawn.com/counter-strike/guide/how-to-read-the-economy-in-cs2'],
+  eco4:['The Ultimate CS2 Economy Guide (ProSettings)','https://prosettings.net/blog/cs2-economy-guide/'],
+  eco5:['CS2 economy tips: managing money (Dignitas)','https://dignitas.gg/articles/cs2-economy-tips-managing-money-for-competitive-wins'],
   cross:['Guida al crosshair placement (CSDB)','https://csdb.gg/guide-to-crosshair-placement/'],
   crossmore:['Crosshair placement oltre il "head level" (SCL)','https://scl.gg/article/93'],
   aim:['Come mirare in CS2: ordine delle abilità (CSDB)','https://csdb.gg/how-to-aim-in-cs2/'],

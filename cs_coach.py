@@ -138,7 +138,8 @@ def needs_context(db, src):
     for x in db["matches"]:
         if x.get("id") == mid:
             ds = [e for e in x["me"]["deaths"] if not e.get("teamkill")]
-            return bool(ds) and not any(("c" in e and "ev" in e["c"]) for e in ds)
+            no_buy = not any("buy" in r for r in x.get("rounds", []))
+            return (bool(ds) and not any(("c" in e and "ev" in e["c"]) for e in ds)) or no_buy
     return False
 
 

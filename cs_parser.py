@@ -70,6 +70,41 @@ def side_name(team_num):
     return {2: "T", 3: "CT"}.get(int(team_num), "?")
 
 
+def _norm_item(x):
+    return "".join(ch for ch in str(x).lower() if ch.isalnum())
+
+
+BUY_PROPS = ["armor_value", "has_helmet", "has_defuser", "inventory", "cash_spent_this_round", "start_balance", "balance", "current_equip_value", "team_num"]
+
+
+def collect_buys(p, rounds, freeze_end, end_tick):
+    """Cosa c'e' in mano a ognuno a fine acquisti (freeze end + 22 s, il tempo utile per comprare).
+    Ritorna {round: {sid: {inv[], ar, hel, kit, st, sp, mo, eq}}}. Se qualcosa non e' disponibile ritorna {}."""
+    out = defaultdict(dict)
+    try:
+        late = {r: min(freeze_end[r] + int(22 * TICKRATE), max(freeze_end[r], end_tick[r] - 1)) for r in rounds}
+        ticks = sorted(set(late.values()))
+        df = p.parse_ticks(BUY_PROPS, ticks=ticks)
+        df["steamid"] = df["steamid"].apply(sid)
+        t2r = {tk: r for r, tk in late.items()}
+        for row in df.itertuples(index=False):
+            r = t2r.get(int(row.tick))
+            if r is None or not row.steamid or int(nz(getattr(row, "team_num", 0))) not in (2, 3):
+                continue
+            inv = getattr(row, "inventory", None)
+            inv = [] if inv is None or (isinstance(inv, float)) else [_norm_item(i) for i in list(inv)]
+            out[r][row.steamid] = {
+                "inv": inv, "ar": int(nz(getattr(row, "armor_value", 0))), "hel": bool(nz(getattr(row, "has_helmet", 0))),
+                "kit": bool(nz(getattr(row, "has_defuser", 0))), "st": int(nz(getattr(row, "start_balance", 0))),
+                "sp": int(nz(getattr(row, "cash_spent_this_round", 0))), "mo": int(nz(getattr(row, "balance", 0))),
+                "eq": int(nz(getattr(row, "current_equip_value", 0))), "tn": int(nz(row.team_num)),
+            }
+    except Exception as e:  # versioni diverse della libreria: l'economia di base resta valida
+        print("  (dettaglio acquisti non disponibile:", repr(e)[:90], ")")
+        return {}
+    return out
+
+
 def parse_demo(path, me_id):
     p = DemoParser(path)
     header = p.parse_header()
@@ -122,6 +157,7 @@ def parse_demo(path, me_id):
         names[row.steamid] = row.name
     if me_id not in names:
         raise SystemExit(f"[{os.path.basename(path)}] SteamID {me_id} non presente nella demo.")
+    buys = collect_buys(p, rounds, freeze_end, end_tick)
 
     # ---------------------------------------------------------------- eventi
     deaths = p.parse_event("player_death", player=["X", "Y", "Z"])
@@ -352,6 +388,14 @@ def parse_demo(path, me_id):
                 "len": rnd((end_tick[r] - freeze_end[r]) / TICKRATE),
                 "half": 1 if r <= 12 else 2,
             })
+            bm = buys.get(r, {}).get(me_id)
+            if bm:
+                tmn = teams[me_id]
+                per_round_me[-1]["buy"] = {
+                    "inv": bm["inv"], "ar": bm["ar"], "hel": bm["hel"], "kit": bm["kit"], "st": bm["st"], "sp": bm["sp"], "mo": bm["mo"],
+                    "tm": [[v["eq"], v["mo"]] for s2, v in buys[r].items() if s2 != me_id and v["tn"] == tmn],
+                    "en": [v["eq"] for s2, v in buys[r].items() if v["tn"] != tmn],
+                }
 
     # ---------------------------------------------------------------- flash / blind
     for b in blinds.itertuples(index=False):
