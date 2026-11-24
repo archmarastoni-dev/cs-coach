@@ -150,6 +150,11 @@ svg.radar.grab{cursor:grabbing}
 .lrn-mod summary{cursor:pointer;font-weight:600}
 .card h3{font-size:14px;margin:12px 0 2px;color:var(--ink-2)}
 .kpis{display:flex;flex-wrap:wrap;gap:16px}.kpis div{display:flex;flex-direction:column}.kpis b{font-size:20px}.kpis span{color:var(--ink-3);font-size:12px}
+.lrn-shots{display:grid;gap:14px;margin-top:8px}
+.lrn-shot h4{font-size:14px;margin:0 0 2px}.lrn-what{font-size:13px;color:var(--ink-2);margin-bottom:6px}.lrn-what span{color:var(--ink-3)}
+.lrn-imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.lrn-imgs img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px;border:1px solid var(--line);background:var(--surface-2);display:block}
+.lrn-broken{font-size:12px;color:var(--ink-3)}
 </style>
 </head>
 <body>
@@ -1756,10 +1761,94 @@ function learnMap(id){
   ${learnData(id)}
   <div class="card"><h2>La mappa</h2>${own.map(([h,b])=>`<h3>${h}</h3>${b}`).join('')}</div>
   <div class="card"><h2>${team?'Per la squadra':'Per te in solo'}</h2>${sidePaths.map(([h,b])=>`<h3>${h}</h3>${b}`).join('')}</div>
+  ${learnShots(id)}
   <div class="card"><h2>Esercitati</h2><p>${L.lineups?'Le lineup esatte delle smoke e delle flash sono nelle pagine dedicate (nessuna coordinata inventata qui): provale in una mappa di allenamento e ripetile finché riescono sempre.':'Per questa mappa non esiste ancora una libreria di lineup nella fonte usata: allenati su una mappa pratica con infinite utility e annota i lanci che funzionano.'}</p>
   <p class="srcs">Fonti: ${srcLinks(srcKeys)}</p></div>`;
 }
 function viewLearn(){ return state.learn.map ? learnMap(state.learn.map) : learnHome(); }
+
+/* ===== Screenshot delle smoke: immagini caricate dalla fonte (non copiate), sempre con link all'articolo ===== */
+Object.assign(SRC, {
+  shot_blast_mirage:['BLAST.tv: Mirage smokes (screenshot)','https://blast.tv/article/cs2-mirage-smokes'],
+  shot_blast_inferno:['BLAST.tv: Inferno smokes (screenshot)','https://blast.tv/article/cs2-inferno-smokes'],
+  shot_blast_nuke:['BLAST.tv: Nuke smokes (screenshot)','https://blast.tv/article/cs2-Nuke-smokes'],
+  shot_blast_ancient:['BLAST.tv: Ancient smokes (screenshot)','https://blast.tv/article/cs2-ancient-smokes'],
+  shot_blast_anubis:['BLAST.tv: Anubis smokes (screenshot)','https://blast.tv/article/cs2-anubis-smokes'],
+  shot_ci_dust2:['Charlie INTEL: Dust II smokes (screenshot)','https://charlieintel.com/counter-strike/cs2-best-smokes-grenade-flash-lineups-for-dust-2-276374'],
+  shot_bo3_mirage:['bo3.gg: 10 instant smoke della finestra su Mirage, con comandi setpos','https://bo3.gg/articles/guide-to-mirage'],
+  shot_expc_cache:['ExpCarry: smoke di Cache 2026 (solo testo)','https://expcarry.com/cs2-cache-smokes-lineups'],
+  shot_sa:['SteamAnalyst: lineup ufficiali Valve con setpos','https://www.steamanalyst.com/lineups']
+});
+const _BL = 'https://sanity-cdn.blast.tv/images/6znhzi10/production/';
+const bl = (...h) => h.map(x => _BL + x + '-1920x1080.jpg');
+const _CI = 'https://www.charlieintel.com/cdn-image/wp-content/uploads/2023/10/02/';
+const ci = (...f) => f.map(x => _CI + x + '-1024x576.jpg');
+const S2 = 'Immagine 1: dove stare. Immagine 2: dove mirare.';
+const LEARN_SHOTS = {
+ de_mirage:{src:'shot_blast_mirage', items:[
+  ['Smoke CT','Taglia la rotazione dallo spawn CT verso l\'A. Da T spawn.',bl('3f2368b2da57f2a9144f7d413e1fbe4343f1a150','a4d1870d47df84cfb04bfd6f5c8bbc444ae2b143'),S2],
+  ['Smoke Stairs','Copre le scale dell\'A: da T spawn.',bl('7861a88688c4de78882074c0f13bd3504d8e4545','16aa05de0e38083483a27b30ad45bfd3de4fd19a'),S2],
+  ['Smoke Jungle','Blocca Jungle e l\'uscita del Connector.',bl('9d28d927b0fb353d964d4cd3817c5c3b9e635d97','22336034f98e200d6d3d5c8a91e85d260db57cfe'),S2],
+  ['Smoke Top Mid (da spawn)','Istantanea a inizio round, dal bidone in T spawn.',bl('7f2aff21e2c56ac5a8fa2eed608ae9ab48268a82'),'Un solo screenshot: punto e mira.',true],
+  ['Smoke Window','Toglie la vista all\'AWP CT sul mid.',bl('fc4087ce3b13117302386ec5151598aa3e05439e'),'Un solo screenshot: punto e mira.'],
+  ['Smoke Top Connector','Isola il Connector dal mid.',bl('729d3ad3ac10e6e3fe0082ae8efb53ab48945d48'),'Un solo screenshot: punto e mira.'],
+  ['Smoke Market Window (B)','Per un attacco B: copre la finestra del Market.',bl('0ddea8f25dd75d29d685bae768c79a530b2ab104'),'Un solo screenshot.'],
+  ['Smoke Market Door (B)','Chiude la porta del Market sul site B.',bl('1026faa2bcff7d8368952596fcfdf952b7a82769'),'Un solo screenshot.']],
+  extra:['shot_bo3_mirage']},
+ de_inferno:{src:'shot_blast_inferno', items:[
+  ['Smoke Short','Isola lo Short dall\'A: dal punto tra Mid, Second Mid e Apartments.',bl('056d69d396ab2db95ef26eb3f1fc81f29b9c5c29','5261f8df89734dba19525c04fb77df17a706f4e4'),S2],
+  ['Smoke Long','Chiude la Long: da Second Mid.',bl('5572ab6a8b7980fd1ed1bfe6c9d380a0537dc43f','f67449f66997f9914696a6d13ee2a0f89596beae'),S2],
+  ['Smoke Moto','Dal Mid, taglia l\'angolo del Moto.',bl('4fe427910ad6cb5ecc042fbff6bb24ad80127460','500674322c0bdfc4812b8a0a7817e9f98874a9fe'),S2],
+  ['Smoke Arch','Fondamentale su ogni attacco A: da Second Mid vicino al Balcony.',bl('090fd44dffa1cccedc4ebb0b3a6863b16112511d','73ba0db581963b22e74f77694924db0a416ad0c5'),S2],
+  ['Smoke Library','Stesso punto dell\'Arch, mira più bassa.',bl('deb1187fbce2eb2156b099918b3f98fdb4a5e405'),'Un solo screenshot: la mira.'],
+  ['Smoke CT (B)','Per un attacco B: dalla Banana.',bl('d073bb0bda3d41b5eab38bfb12511fc580087aa8','c9ed1ed5399d4f4aef9740141191c50dcd275a0a'),S2],
+  ['Smoke Coffins','Isola i difensori in Coffins.',bl('8bef16d46f9a0e9e79b686916ce921bb56221be9'),'Un solo screenshot.']]},
+ de_nuke:{src:'shot_blast_nuke', items:[
+  ['Muro di smoke Outside: smoke 1','Primo giocatore del muro, tirata insieme alla seconda.',bl('48adc2b40b82029e9ef1d7187a3efe29369260c0','5ca19a30e1640bbddd31947b81cffabfbe2e39e1'),S2],
+  ['Muro di smoke Outside: smoke 2','Il secondo giocatore: va lanciata insieme alla prima.',bl('0ae3de226150507cb20e98b94c6731a548116696','8e444f35fb4017a1ff5b1931e085328cac8743a6'),S2],
+  ['Smoke Garage (da spawn)','Utile anche senza il muro: dal punto appena fuori T spawn.',bl('c98acf498bcd6c88546ce34a7a2f0f56f893700e','13ecb48b43a75a16593f73e1c64578a4320a19b9'),S2,true],
+  ['Smoke Heaven','Taglia l\'AWP in Heaven: dalla recinzione ai bordi mappa.',bl('2481e8d86e1e512eac7ecb2a88e215dd8d16d189','240325999842e5574f6670caa720c0cf03507f30'),S2]]},
+ de_ancient:{src:'shot_blast_ancient', items:[
+  ['Smoke Mid (da spawn)','Istantanea: dal pilastro in T spawn.',bl('9900a5dc4890f8cdc466b1f83149ed95aef6bdb5','6aef1b2307c1261dc8c7a5cecc6095fbb0f18e87'),S2,true],
+  ['Smoke CT (A)','Contro l\'AWP: dall\'angolo fuori da A Main.',bl('a89b3ebc2c42ac9e312f523312ef698c04e15444','d01ea73a05cab774aa6e93f9d6775bded9151665'),S2],
+  ['Smoke Temple (A)','Stesso angolo della CT, mira diversa.',bl('7d82d84624574d3c881b7bdb41ecc8737b8a39b2'),'Un solo screenshot: la mira.'],
+  ['Smoke Donut (A)','Stesso angolo, per isolare il Donut.',bl('7eb39eef79bcc7e40de666dbb32188deeee84c0e'),'Un solo screenshot: la mira.'],
+  ['B: punto di lancio comune','Le tre smoke di B si tirano dallo stesso punto.',bl('a4cac6a7ab7fa14b9b3e2a7bfad62487cc308429'),'Un solo screenshot: dove stare.'],
+  ['Smoke Cave (B)','Dal punto comune di B.',bl('9fbed4bdb12e4cf6a9e3293a4018b8f69c7f766a'),'Un solo screenshot: la mira.'],
+  ['Smoke B Short','Dal punto comune di B.',bl('b2c5a3d240dbed5e5f418e732c939dcb01775cbe'),'Un solo screenshot: la mira.'],
+  ['Smoke B Long','Dal punto comune di B.',bl('f1b3bd4dc5ebaaab857df90be92f7d2ad076761c'),'Un solo screenshot: la mira.']]},
+ de_anubis:{src:'shot_blast_anubis', items:[
+  ['Smoke Mid / Bridge (da spawn)','Istantanea: dalla porta in fondo a T spawn.',bl('31a5b0a5a6dba137854bdd39aab68920f6fe2936','28bfcc53f06f5e1b38e56735512a77447fb9f787'),S2,true],
+  ['Smoke B Connector (da spawn)','Istantanea: dal muro appena fuori T spawn.',bl('90957e20db2943c56f3e36139e02fe0d35238b54','2d2040c3df19d8eb2bf3c52052acc8bedb23f348'),S2,true],
+  ['Smoke Heaven (A)','Dal canale fuori da A Main.',bl('7277ba3490db22ee86ac52e5a3599c4f25f663a6','fabbc0c8ff23e7ccb4cd09befbe9c80e873b3d26'),S2],
+  ['Smoke Plateau (A)','Dallo stesso angolo del canale, mira all\'arco nel muro di A Main.',bl('fe21ed8c2b36b03af6d2c9bdd284237d578883aa','747b8ee7c0cfafb737e5c22616aad06255be1cd8'),S2],
+  ['Smoke Connector (A)','Blocca le rotazioni dal Connector durante l\'esecuzione.',bl('640474d5a0443f081379c8fc4c8a8fe933aca56e','f6f0b7d939df9701ba076622b9526e80c0aee281'),S2],
+  ['B: punto comune + Street, Temple, Connector','Tre smoke da B Long, dallo stesso punto: prima il punto, poi le tre mire.',bl('a0c048adb2383c0fae2fd2f0dc6ed69d3adf3317','5ab2d7100165b7a51dd6e2d1ef0fa51bd406dce3','0b9d1dfe61243711f077d108f94adf7a755966d8','6552129b899297304290e0440551a79a992add87'),'Immagine 1: dove stare. Poi Street, Temple, Connector.']]},
+ de_dust2:{src:'shot_ci_dust2', items:[
+  ['Smoke CT-cross (A Long)','Blocca l\'incrocio CT durante l\'attacco A.',ci('cs2-dust-2-along-ct-cross-smoke-lineup'),'Un solo screenshot.'],
+  ['Smoke CT-cross profonda','Variante più profonda.',ci('cs2-dust2-a-long-deep-ct-cross-smoke-lineups'),'Un solo screenshot.'],
+  ['Smoke A Short','Isola lo Short.',ci('cs2-dust2-a-short-cross-smoke-lineups'),'Un solo screenshot.'],
+  ['Smoke Xbox (Catwalk)','Permette di salire allo short in sicurezza.',ci('cs2-dust2-xbox-catwalk-mid-smoke-lineups'),'Un solo screenshot.'],
+  ['Smoke CT dal mid','Per tagliare la rotazione CT dal mid.',ci('cs2-dust2-xbox-mid-ct-cross-smoke-lineups'),'Un solo screenshot.'],
+  ['Smoke B Door','Per B: chiude le porte.',ci('cs2-dust2-b-door-smoke-lineups-2'),'Un solo screenshot.'],
+  ['Smoke B Window','Per B: chiude la finestra.',ci('cs2-dust2-b-window-smoke-lineups-1'),'Un solo screenshot.'],
+  ['Smoke B Platform','Per B: la piattaforma del site.',ci('cs2-dust2-b-platform-smoke-lineup'),'Un solo screenshot.']]},
+ de_cache:{src:null, items:[], note:'Per la nuova Cache (2026) non ho trovato screenshot affidabili: le guide con immagini sono della versione vecchia (CS:GO) e i punti di lancio possono essere cambiati. Qui trovi solo l\'elenco testuale delle smoke da imparare per primo; verifica sempre in una mappa di allenamento.', extra:['shot_expc_cache']}
+};
+
+function learnShots(id){
+  const S = LEARN_SHOTS[id]; if(!S) return '';
+  const src = S.src ? SRC[S.src] : null;
+  const fig = (it) => {
+    const [name, what, imgs, how, spawn] = it;
+    return `<div class="lrn-shot"><h4>${esc(name)}${spawn?' <i class="pill D">subito dallo spawn</i>':''}</h4><div class="lrn-what">${esc(what)} <span>${esc(how)}</span></div>
+      <div class="lrn-imgs">${imgs.map((u,i)=>`<a href="${u}" target="_blank" rel="noopener noreferrer"><img loading="lazy" referrerpolicy="no-referrer" src="${u}" alt="${esc(name)}, immagine ${i+1}" onerror="this.parentNode.outerHTML='<span class=&quot;lrn-broken&quot;>Immagine non disponibile: apri la fonte.</span>'"></a>`).join('')}</div></div>`;
+  };
+  const body = S.items.length ? `<div class="lrn-shots">${S.items.map(fig).join('')}</div>` : '';
+  const from = src ? `<p class="srcs">Immagini caricate da: <a href="${src[1]}" target="_blank" rel="noopener noreferrer">${esc(src[0])}</a>. Clicca un\'immagine per aprirla a grandezza intera. Le immagini restano sul sito della fonte e servono internet; sono del 2023, quindi controlla il lancio in una mappa di allenamento.</p>` : '';
+  const ex = (S.extra||[]).length ? `<p class="srcs">Vedi anche: ${srcLinks(S.extra)}</p>` : '';
+  return `<div class="card"><h2>Dove tirare le smoke</h2><div class="sub">Screenshot con punto di lancio e mira, pensati per chi cerca le granate da copiare.</div>${S.note?`<p>${esc(S.note)}</p>`:''}${body}${from}${ex}</div>`;
+}
 
 function render(){
   renderChrome();
