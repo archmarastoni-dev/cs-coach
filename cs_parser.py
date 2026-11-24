@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-CS2 demo parser -> JSON per la dashboard "CS Coach".
+CS2 demo parser -> JSON for the "CS Coach" dashboard.
 
-Uso:
+Usage:
     pip install demoparser2 pandas
     python cs_parser.py --steamid YOUR_STEAMID64 --out cs_data.json  demo1.dem demo2.dem ...
 
-Il JSON prodotto si carica nella dashboard con il pulsante "Importa dati".
-Si possono unire più esecuzioni: la dashboard riconosce le partite già presenti (campo id).
+The produced JSON is loaded into the dashboard with the "Importa dati" (import) button.
+Several runs can be merged: the dashboard recognises matches already present (field id).
 """
 import argparse
 import hashlib
@@ -26,7 +26,7 @@ except Exception:
 from demoparser2 import DemoParser
 
 TICKRATE = 64
-TRADE_WINDOW = int(5 * TICKRATE)        # 5 secondi per le trade
+TRADE_WINDOW = int(5 * TICKRATE)        # 5 seconds for trades
 GRENADES = {
     "weapon_smokegrenade": "smoke",
     "weapon_flashbang": "flash",
@@ -83,8 +83,8 @@ BUY_PROPS = ["armor_value", "has_helmet", "has_defuser", "inventory", "cash_spen
 
 
 def collect_buys(p, rounds, freeze_end, end_tick):
-    """Cosa c'e' in mano a ognuno a fine acquisti (freeze end + 22 s, il tempo utile per comprare).
-    Ritorna {round: {sid: {inv[], ar, hel, kit, st, sp, mo, eq}}}. Se qualcosa non e' disponibile ritorna {}."""
+    """What each player holds at the end of the buy phase (freeze end + 22 s, the useful buying time).
+    Returns {round: {sid: {inv[], ar, hel, kit, st, sp, mo, eq}}}. Returns {} if anything is unavailable."""
     out = defaultdict(dict)
     try:
         late = {r: min(freeze_end[r] + int(22 * TICKRATE), max(freeze_end[r], end_tick[r] - 1)) for r in rounds}
@@ -104,8 +104,8 @@ def collect_buys(p, rounds, freeze_end, end_tick):
                 "sp": int(nz(getattr(row, "cash_spent_this_round", 0))), "mo": int(nz(getattr(row, "balance", 0))),
                 "eq": int(nz(getattr(row, "current_equip_value", 0))), "tn": int(nz(row.team_num)),
             }
-    except Exception as e:  # versioni diverse della libreria: l'economia di base resta valida
-        print("  (dettaglio acquisti non disponibile:", repr(e)[:90], ")")
+    except Exception as e:  # different library versions: the basic economy stays valid
+        print("  (buy detail unavailable:", repr(e)[:90], ")")
         return {}
     return out
 
@@ -126,7 +126,7 @@ def parse_demo(path, me_id):
     winner = dict(zip(re_["round"].astype(int), re_["winner"]))
     reason = dict(zip(re_["round"].astype(int), re_["reason"]))
     rounds = sorted(r for r in end_tick if r in start_tick)
-    # freeze_end per round: primo freeze_end dopo round_start
+    # freeze_end per round: first freeze_end after round_start
     fe_ticks = sorted(fe["tick"].astype(int).tolist())
     freeze_end = {}
     for r in rounds:
@@ -136,15 +136,15 @@ def parse_demo(path, me_id):
     starts = [start_tick[r] for r in rounds]
 
     def round_of(tick):
-        # un evento dopo il round_end (es. kill dopo il defuse) conta per quel round,
-        # come nel tabellone di Valve: vale fino all'inizio del round successivo
+        # an event after round_end (e.g. a kill after the defuse) counts for that round,
+        # as on the Valve scoreboard: it applies until the next round starts
         for i, r in enumerate(rounds):
             nxt = starts[i + 1] if i + 1 < len(rounds) else 10 ** 12
             if starts[i] <= tick < nxt:
                 return r
         return None
 
-    # ---------------------------------------------------------------- team / economia per round
+    # ---------------------------------------------------------------- team / economy per round
     tdf = p.parse_ticks(["team_num", "current_equip_value", "balance"], ticks=[freeze_end[r] for r in rounds])
     tdf["steamid"] = tdf["steamid"].apply(sid)
     team_of = defaultdict(dict)     # round -> sid -> team_num
@@ -161,10 +161,10 @@ def parse_demo(path, me_id):
         money[r][row.steamid] = int(nz(row.balance))
         names[row.steamid] = row.name
     if me_id not in names:
-        raise SystemExit(f"[{os.path.basename(path)}] SteamID {me_id} non presente nella demo.")
+        raise SystemExit(f"[{os.path.basename(path)}] SteamID {me_id} not present in the demo.")
     buys = collect_buys(p, rounds, freeze_end, end_tick)
 
-    # ---------------------------------------------------------------- eventi
+    # ---------------------------------------------------------------- events
     deaths = p.parse_event("player_death", player=["X", "Y", "Z"])
     hurts = p.parse_event("player_hurt")
     blinds = p.parse_event("player_blind")
@@ -203,7 +203,7 @@ def parse_demo(path, me_id):
 
     players = sorted(names)
 
-    # struttura statistiche per giocatore
+    # per-player stats structure
     def blank():
         return defaultdict(float)
     S = {s: blank() for s in players}
@@ -238,7 +238,7 @@ def parse_demo(path, me_id):
                     side_stats[d2.attacker_steamid][side_name(tv)]["trade_kills"] += 1
                     break
 
-    # ---------------------------------------------------------------- loop per round
+    # ---------------------------------------------------------------- per-round loop
     me_kills_ev, me_deaths_ev = [], []
     clutch_list = []
     for r in rounds:
@@ -305,14 +305,14 @@ def parse_demo(path, me_id):
             first_done = True
             alive.discard(v)
 
-            # clutch tracking (dopo la morte)
+            # clutch tracking (after the death)
             for team in (2, 3):
                 mates = [s for s in alive if teams.get(s) == team]
                 foes = [s for s in alive if teams.get(s) not in (None, team)]
                 if len(mates) == 1 and len(foes) >= 1 and team not in clutch_state:
                     clutch_state[team] = (mates[0], len(foes))
 
-            # eventi con coordinate per me
+            # events with coordinates for me
             if not is_suicide and not is_tk:
                 base = {
                     "r": r, "t": rnd(tsec), "tick": int(d.tick), "ksid": k, "vsid": v, "w": wn(nz(d.weapon, "")), "hs": bool(d.headshot),
@@ -359,7 +359,7 @@ def parse_demo(path, me_id):
             if pl == me_id:
                 clutch_list.append({"r": r, "vs": vs, "won": bool(won)})
 
-        # danni del round
+        # round damage
         r_dmg = defaultdict(float)
         for h in rd_hurts.itertuples(index=False):
             a, v = h.attacker_steamid, h.user_steamid
@@ -379,7 +379,7 @@ def parse_demo(path, me_id):
             if w in GRENADE_DMG:
                 S[a][f"dmg_{GRENADE_DMG[w]}"] += dm
 
-        # riga round per me
+        # round row for me
         if me_id in teams:
             me_side = side_name(teams[me_id])
             invm = involved[me_id]
@@ -418,7 +418,7 @@ def parse_demo(path, me_id):
             S[a]["enemies_flashed"] += 1
             S[a]["enemy_flash_time"] += dur
 
-    # ---------------------------------------------------------------- utilità (lanci con origine/atterraggio)
+    # ---------------------------------------------------------------- utility (throws with origin/landing)
     fires_g = fires[fires["weapon"].isin(GRENADES)].copy()
     fires_g["kind"] = fires_g["weapon"].map(GRENADES)
     fires_g = fires_g.sort_values("tick")
@@ -446,7 +446,7 @@ def parse_demo(path, me_id):
             util_rows.append({"sid": e.user_steamid, "kind": kind, "r": r, "side": sd,
                                "t": rnd((int(e.tick) - freeze_end[r]) / TICKRATE),
                                "lx": rnd(e.x, 0), "ly": rnd(e.y, 0), "lz": rnd(e.z, 0), "fire_tick": ft, "tick": int(e.tick)})
-    # posizione di lancio (solo per me)
+    # throw position (only for me)
     me_util = [u for u in util_rows if u["sid"] == me_id]
     ticks_needed = sorted({u["fire_tick"] for u in me_util if u["fire_tick"]})
     pos = {}
@@ -456,7 +456,7 @@ def parse_demo(path, me_id):
         pdf = pdf[pdf["steamid"] == me_id]
         for row in pdf.itertuples(index=False):
             pos[int(row.tick)] = (rnd(row.X, 0), rnd(row.Y, 0), rnd(row.pitch, 1), rnd(row.yaw, 1))
-    # esito dei miei lanci: flash (nemici/compagni accecati, kill successive) e smoke (nemici vicini)
+    # outcome of my throws: flashes (enemies/teammates blinded, follow-up kills) and smokes (nearby enemies)
     try:
         _utility_outcomes(p, me_id, me_util, blinds, deaths, team_of, round_of)
     except Exception:
@@ -468,11 +468,11 @@ def parse_demo(path, me_id):
             o["ox"], o["oy"], o["pitch"], o["yaw"] = pos[u["fire_tick"]]
             o["fly"] = rnd(0, 1)
         me_util_out.append(o)
-    # tutti gli atterraggi smoke (riferimento: dove le mettono gli altri)
+    # every smoke landing (reference: where other players put them)
     smoke_ref = [{"side": u["side"], "lx": u["lx"], "ly": u["ly"], "t": u["t"], "me": u["sid"] == me_id}
                  for u in util_rows if u["kind"] == "smoke"]
 
-    # ---------------------------------------------------------------- armi (colpi / hit / kill)
+    # ---------------------------------------------------------------- weapons (shots / hits / kills)
     shots = defaultdict(int)
     for f in fires.itertuples(index=False):
         if f.user_steamid == me_id and f.weapon not in GRENADES and wn(f.weapon) not in ("knife", "taser", "c4"):
@@ -508,7 +508,7 @@ def parse_demo(path, me_id):
     plant_me = int((plants["user_steamid"] == me_id).sum())
     defuse_me = int((defuses["user_steamid"] == me_id).sum())
 
-    # ---------------------------------------------------------------- punteggio
+    # ---------------------------------------------------------------- score
     me_wins = sum(1 for x in per_round_me if x["won"])
     me_loss = sum(1 for x in per_round_me if not x["won"])
     ct_w = sum(1 for x in per_round_me if x["side"] == "CT" and x["won"])
@@ -518,17 +518,17 @@ def parse_demo(path, me_id):
     result = "W" if me_wins > me_loss else ("L" if me_wins < me_loss else "D")
     complete = max(me_wins, me_loss) >= 13
 
-    # ---------------------------------------------------------------- giocatori
+    # ---------------------------------------------------------------- players
     def player_out(s):
         st = dict(S[s])
         n = max(1, st.get("rounds", 0))
         rounds_n = n
         k, d, a = st.get("kills", 0), st.get("deaths", 0), st.get("assists", 0)
         # HLTV rating 1.0 (approssimato)
-        # i round con 1 kill contano 1 (non tracciati qui) -> approssimazione standard: usiamo kills totali come proxy
+        # rounds with 1 kill count 1 (not tracked here) -> standard approximation: use total kills as a proxy
         kill_rating = (k / rounds_n) / 0.679
         surv_rating = ((rounds_n - d) / rounds_n) / 0.317
-        # round con N kill: ricaviamo round con 1 kill = kills - sum(N*count_N)
+        # rounds with N kills: derive rounds with 1 kill = kills - sum(N*count_N)
         multi_kills = st.get("mk2", 0) * 2 + st.get("mk3", 0) * 3 + st.get("mk4", 0) * 4 + st.get("mk5", 0) * 5
         one_k = max(0, k - multi_kills)
         rmk = (one_k + 4 * st.get("mk2", 0) + 9 * st.get("mk3", 0) + 16 * st.get("mk4", 0) + 25 * st.get("mk5", 0)) / rounds_n / 1.277
@@ -555,19 +555,19 @@ def parse_demo(path, me_id):
     plist.sort(key=lambda x: (-int(x["mine_team"]), -x["rating"]))
 
     match_id = hashlib.sha1(f"{os.path.basename(path)}".encode()).hexdigest()[:10]
-    # impronta della partita: stessa partita scaricata con nomi diversi = stessa impronta
+    # match fingerprint: the same match downloaded under different names gets the same fingerprint
     fp = hashlib.sha1((map_name + "|" + ",".join(sorted(players)) + f"|{me_wins}-{me_loss}|{header.get('patch_version','')}").encode()).hexdigest()[:12]
     me_p = next(x for x in plist if x["sid"] == me_id)
     try:
         ptk = {int(r): int(t) for r, t in zip(plants["round"], plants["tick"]) if r == r} if "round" in plants.columns else {}
         death_context(p, me_id, [e for e in me_deaths_ev if not e.get("teamkill")], team_of, names, ptk, by_round_deaths, det, round_of, map_name, util_rows)
-    except Exception as ex:   # il contesto e' un extra: non deve mai bloccare l'analisi
-        print(f"  [avviso] contesto morti non calcolato: {ex}")
+    except Exception as ex:   # the context is an extra: it must never block the analysis
+        print(f"  [warning] death context not computed: {ex}")
     mov = None
     try:
         mov = aim_analysis(p, me_id, fires, hurts, me_kills_ev, me_deaths_ev)
     except Exception as ex:
-        print(f"  [avviso] analisi mira non calcolata: {ex}")
+        print(f"  [warning] aim analysis not computed: {ex}")
 
     return {
         "id": match_id,
@@ -595,7 +595,7 @@ UTIL_INV = {"Flashbang": "flash", "Smoke Grenade": "smoke", "HE Grenade": "he", 
 
 
 def _look(r):
-    """Direzione dello sguardo (gradi), inclinazione e se e' accovacciato; vuoto se la libreria non li fornisce."""
+    """View direction (degrees), pitch and whether crouching; empty if the library does not provide them."""
     out = {}
     try:
         yw = getattr(r, "yaw", None)
@@ -613,7 +613,7 @@ def _look(r):
 
 
 def _utility_outcomes(p, me_id, me_util, blinds, deaths, team_of, round_of):
-    """Aggiunge a ogni mia flash l'esito (en, tm, bd, fk, sf) e a ogni mia smoke il numero di nemici vicini (ne)."""
+    """Adds to each of my flashes its outcome (en, tm, bd, fk, sf) and to each of my smokes the number of nearby enemies (ne)."""
     flashes = [u for u in me_util if u["kind"] == "flash" and u.get("tick")]
     for u in flashes:
         r, t0 = u["r"], u["tick"]
@@ -663,11 +663,11 @@ def _utility_outcomes(p, me_id, me_util, blinds, deaths, team_of, round_of):
 
 
 def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=None, det=None, round_of=None, map_name=None, util_rows=None):
-    """Per ogni mia morte salva il contesto: posizioni di tutti, scia, compagni vicini, utility rimasta.
-    La classificazione degli errori avviene nella dashboard, cosi' si puo' cambiare senza rileggere le demo."""
+    """For each of my deaths, stores the context: everyone's positions, trail, nearby teammates, leftover utility.
+    Mistake classification happens in the dashboard, so it can change without re-reading the demos."""
     if not evs:
         return
-    STEP = 32  # mezzo secondo
+    STEP = 32  # half a second
     need = set()
     for e in evs:
         base = max(1, e["tick"] - 1)
@@ -675,7 +675,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
             need.add(max(1, base - k * STEP))
     base_props = ["X", "Y", "Z", "team_num", "health", "last_place_name", "inventory", "flash_duration",
                   "active_weapon_name"]
-    try:   # direzione dello sguardo e accovacciato: se la libreria non li ha, si prosegue senza
+    try:   # view direction and crouching: if the library lacks them, carry on without
         df = p.parse_ticks(base_props + ["yaw", "pitch", "ducking"], ticks=sorted(need))
     except Exception:
         df = p.parse_ticks(base_props, ticks=sorted(need))
@@ -692,7 +692,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
         snap = alive_at(base)
         mine = snap.get(me_id)
         if mine is None:
-            # morto un attimo prima del tick: usa quello prima
+            # dead a moment before the tick: use the previous one
             for k in range(1, 4):
                 snap = alive_at(max(1, base - k * 8)) if (base - k * 8) in by_tick else snap
             mine = snap.get(me_id)
@@ -706,7 +706,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
         def dist(r):
             return math.hypot(float(r.X) - mx, float(r.Y) - my)
         near = min(mates, key=lambda sr: dist(sr[1])) if mates else None
-        # scia
+        # trail
         trail = []
         trail3 = []
         for k in range(8, -1, -1):
@@ -738,7 +738,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
             "mn": str(names.get(near[0], ""))[:14] if near else "", "ma": len(mates), "fa": len([1 for s, r in foes]) ,
             "ut": ut, "fl": round(fl, 1), "pb": bool(pt and e["tick"] > pt), "pos": pos,
         }
-        # fotogrammi: tutti i giocatori vivi a 3, 2, 1 e 0 secondi dalla morte (+ utility attiva)
+        # frames: every living player at 3, 2, 1 and 0 seconds before the death (+ active utility)
         try:
             fr = []
             for kk in (6, 4, 2, 0):
@@ -762,7 +762,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
                 e["c"]["ug"] = ug
         except Exception:
             pass
-        # geometria reale della mappa (opzionale: richiede awpy e i dati di mappa)
+        # real map geometry (optional: needs awpy and the map data)
         if map_name and _geo is not None:
             try:
                 kr3 = (float(kr.X), float(kr.Y), float(kr.Z)) if kr is not None else None
@@ -773,7 +773,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
                     e["c"]["geo"] = g
             except Exception:
                 pass
-        # eventi recenti (ultimi 12 s dello stesso round): morti di tutti e utility lanciate
+        # recent events (last 12 s of the same round): everyone's deaths and thrown utility
         try:
             rec = []
             W = int(12 * TICKRATE)
@@ -802,7 +802,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
                                     "x": int(nz(getattr(u, "x", 0))), "y": int(nz(getattr(u, "y", 0)))})
             rec.sort(key=lambda z: -z["s"])
             e["c"]["ev"] = rec
-            # chi c'era attorno a me 3 secondi prima (posizioni e squadra)
+            # who was around me 3 seconds earlier (positions and team)
             snap3 = alive_at(max(1, base - 6 * STEP))
             e["c"]["p3"] = [{"n": str(names.get(s, s))[:14], "x": int(float(r.X)), "y": int(float(r.Y)),
                              "tm": "me" if s == me_id else ("mate" if int(nz(r.team_num)) == myteam else "foe")} for s, r in snap3.items()]
@@ -815,7 +815,7 @@ NOT_GUNS = ("knife", "taser", "c4", "decoy", "flashbang", "hegrenade", "smokegre
 
 
 def _aim_err(me, en):
-    """Angolo (gradi) tra dove guardo e la testa del nemico; dpit>0 = mirino piu' in basso della testa."""
+    """Angle (degrees) between where I look and the enemy's head; dpit>0 = crosshair below the head."""
     ez = float(me.Z) + (46.0 if nz(me.ducking, False) else 64.0)
     hz = float(en.Z) + (44.0 if nz(en.ducking, False) else 62.0)
     dx, dy, dz = float(en.X) - float(me.X), float(en.Y) - float(me.Y), hz - ez
@@ -827,7 +827,7 @@ def _aim_err(me, en):
 
 
 def aim_analysis(p, me_id, fires, hurts, kills_ev, deaths_ev):
-    """Movimento negli spari + posizionamento del mirino. Salva 'a' dentro kill e morti, ritorna le statistiche sugli spari."""
+    """Movement while shooting + crosshair placement. Stores 'a' inside kills and deaths, returns the shot statistics."""
     import bisect
     mine = fires[fires["user_steamid"] == me_id].sort_values("tick")
     shots = [(int(r.tick), wn(r.weapon)) for r in mine.itertuples(index=False)
@@ -893,7 +893,7 @@ def aim_analysis(p, me_id, fires, hurts, kills_ev, deaths_ev):
             D[b][1] += hit
 
     for e, kind, shooter, target, tf in ev_plan:
-        # il "posizionamento" si misura un attimo prima del primo colpo; l'errore al colpo dice quanto lontano partivi
+        # "placement" is measured a moment before the first shot; the error at the shot says how far off you started
         out = {}
         for key, tt in (("e0", max(1, tf - 16)), ("e1", tf)):
             m_, t_ = rows.get(tt, {}).get(me_id), rows.get(tt, {}).get(target if kind == "k" else shooter)
@@ -913,9 +913,9 @@ def aim_analysis(p, me_id, fires, hurts, kills_ev, deaths_ev):
     return {"all": A, "first": F, "w": {w: d for w, d in W.items() if sum(x[0] for x in d.values()) >= 25}}
 
 
-# ====================================================================== file .info di Valve
-# Accanto a ogni demo (match730_....dem) CS2 salva un file .dem.info con il tabellone della partita
-# e la data reale. Serve anche per le partite di cui NON hai scaricato la demo.
+# ====================================================================== Valve .info files
+# Next to every demo (match730_....dem) CS2 saves a .dem.info file with the match scoreboard
+# and the real date. It also covers matches whose demo you did NOT download.
 import struct
 import datetime as _dt
 
@@ -951,13 +951,13 @@ def _pb(b):
             v = b[i:i + n]
             i += n
         else:
-            raise ValueError("protobuf non valido")
+            raise ValueError("invalid protobuf")
         out.append((f, w, v))
     return out
 
 
 def read_info(path):
-    """Legge un file .dem.info. Ritorna {valve_id, time, rounds:[{acc:[...], f:{campo:[valori]}}]}."""
+    """Reads a .dem.info file. Returns {valve_id, time, rounds:[{acc:[...], f:{field:[values]}}]}."""
     top = _pb(open(path, "rb").read())
     d = {f: v for f, w, v in top if w != 2}
     rounds = []
@@ -978,7 +978,7 @@ def info_played(info):
 
 
 def lite_from_info(path, me_id):
-    """Partita 'solo tabellone' ricavata dal .info (senza demo). None se non ci sei tu."""
+    """'Scoreboard-only' match derived from the .info (no demo). None if you are not in it."""
     info = read_info(path)
     rr = info["rounds"]
     if not rr:
@@ -993,14 +993,14 @@ def lite_from_info(path, me_id):
     first_team = ix < 5
     sc = f.get(12, [0, 0])
     us, them = (sc[0], sc[1]) if first_team else (sc[1], sc[0])
-    win_team = (f.get(11) or [0])[0]            # 1 = ha vinto la prima squadra, 2 = la seconda
+    win_team = (f.get(11) or [0])[0]            # 1 = the first team won, 2 = the second
     result = "W" if win_team == (1 if first_team else 2) else "L" if win_team else "D"
     n = len(rr)
 
     def col(k):
         return f.get(k, [0] * len(acc))
 
-    # kill per round dai valori cumulativi (round per round)
+    # kills per round from the cumulative values (round by round)
     prev, mk = 0, [0] * 6
     for r in rr:
         cur = r["f"].get(5, [0] * len(acc))[ix]
@@ -1047,7 +1047,7 @@ def main():
     out = {"version": 1, "steamid": args.steamid, "matches": matches}
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"Scritto {args.out}: {len(matches)} partite", file=sys.stderr)
+    print(f"Written {args.out}: {len(matches)} matches", file=sys.stderr)
 
 
 if __name__ == "__main__":

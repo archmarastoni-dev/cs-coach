@@ -1,0 +1,26 @@
+name: Check
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Python syntax
+        run: python -m py_compile cs_parser.py cs_coach.py cs_geo.py cs_coach_app.py tools/build_dashboard.py
+      - name: JavaScript syntax
+        run: for f in $(find src -name "*.js"); do node --check "$f" || exit 1; done
+      - name: dashboard_template.html is up to date
+        run: |
+          python tools/build_dashboard.py --out /tmp/dashboard_template.html
+          diff -q /tmp/dashboard_template.html dashboard_template.html

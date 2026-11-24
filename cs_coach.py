@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-CS Coach - analizza in automatico le demo di una cartella e aggiorna la dashboard locale.
+CS Coach - automatically parses the demos in a folder and refreshes the local dashboard.
 
-Cosa fa, ogni volta che lo lanci:
-  1. cerca demo nuove nelle cartelle indicate (.dem, .dem.bz2, .dem.gz, .dem.zst)
-  2. le analizza e aggiunge le partite al tuo archivio (cs_data.json)
-  3. con --delete cancella la demo dopo averla analizzata (l'archivio resta, il PC no)
-  4. rigenera la dashboard cs_coach.html, che apri con un doppio clic: non serve CS aperto
+Each time you run it:
+  1. looks for new demos in the given folders (.dem, .dem.bz2, .dem.gz, .dem.zst)
+  2. parses them and adds the matches to your archive (cs_data.json)
+  3. with --delete, removes each demo once parsed (the archive stays, the disk space is freed)
+  4. regenerates the dashboard cs_coach.html, which you open with a double click (CS does not need to be running)
 
-Esempi (Windows, da Prompt dei comandi nella cartella dello script):
+Examples (Windows, from a Command Prompt in the script folder):
   python cs_coach.py --delete
-  python cs_coach.py --delete --watch              (resta in attesa e analizza le demo appena arrivano)
-  python cs_coach.py --folder "D:\\altre demo" --folder "D:\\Programmi D\\Steam\\...\\replays"
+  python cs_coach.py --delete --watch              (keeps running and parses demos as they arrive)
+  python cs_coach.py --folder "D:\\other demos" --folder "D:\\Steam\\...\\replays"
 
-Installazione una tantum:   pip install demoparser2 pandas      (e, per i file .zst: pip install zstandard)
-Servono nella stessa cartella: cs_parser.py e dashboard_template.html
+One-time setup:   pip install demoparser2 pandas      (and, for .zst files: pip install zstandard)
+Needed in the same folder: cs_parser.py and dashboard_template.html
 """
 import argparse
 import bz2
@@ -54,7 +54,7 @@ def load_db(path, steamid):
             db.setdefault("processed", [])
             db.setdefault("lite", [])
             if steamid and db.get("steamid") not in (None, steamid):
-                sys.exit(f"L'archivio {path.name} è di un altro SteamID ({db.get('steamid')}). Usa un altro --db.")
+                sys.exit(f"The archive {path.name} belongs to another SteamID ({db.get('steamid')}). Use a different --db.")
             db.setdefault("steamid", steamid)
             return db
         except Exception as e:
@@ -71,14 +71,14 @@ def save_db(path, db):
 def write_html(db, html_path):
     tpl = HERE / "dashboard_template.html"
     if not tpl.exists():
-        log("ATTENZIONE: dashboard_template.html non trovato accanto allo script, dashboard non aggiornata.")
+        log("WARNING: dashboard_template.html not found next to the script, dashboard not updated.")
         return
     public = {k: v for k, v in db.items() if k != "processed"}
     blob = json.dumps(public, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     html = tpl.read_text(encoding="utf-8")
     html, n = re.subn(r"/\*DATA_START\*/.*?/\*DATA_END\*/", lambda m: "/*DATA_START*/" + blob + "/*DATA_END*/", html, count=1, flags=re.S)
     if n != 1:
-        log("ATTENZIONE: il modello della dashboard non ha i marcatori attesi.")
+        log("WARNING: the dashboard template does not contain the expected markers.")
         return
     tmp = html_path.with_suffix(".tmp")
     tmp.write_text(html, encoding="utf-8")
@@ -86,7 +86,7 @@ def write_html(db, html_path):
 
 
 def is_settled(p):
-    """True se il file non sta più crescendo (download finito)."""
+    """True if the file is no longer growing (download finished)."""
     try:
         s1 = p.stat()
         if time.time() - s1.st_mtime < 15:
@@ -102,7 +102,7 @@ def find_demos(folders):
     for f in folders:
         p = Path(f)
         if not p.is_dir():
-            log(f"Cartella non trovata: {f}")
+            log(f"Folder not found: {f}")
             continue
         for x in sorted(p.iterdir()):
             if x.is_file() and x.name.lower().endswith(EXTS):
@@ -133,7 +133,7 @@ def decompress(src, tmpdir):
 
 
 def needs_context(db, src):
-    """True se la partita e' in archivio ma senza il dettaglio delle morti (analizzata con la versione vecchia)."""
+    """True if the match is archived but lacks the per-death detail (parsed by an older version)."""
     mid = __import__("hashlib").sha1(src.name.split(".dem")[0].encode()).hexdigest()[:10]
     for x in db["matches"]:
         if x.get("id") == mid:
@@ -153,14 +153,14 @@ def process(folders, db, db_path, html_path, delete, failed):
             if delete and key in db["processed"]:
                 try:
                     src.unlink()
-                    log(f"Eliminata (già analizzata): {src.name}")
+                    log(f"Deleted (already parsed): {src.name}")
                 except OSError as e:
-                    log(f"Non riesco a eliminare {src.name}: {e}")
+                    log(f"Cannot delete {src.name}: {e}")
             continue
         if not is_settled(src):
-            log(f"Download ancora in corso, salto per ora: {src.name}")
+            log(f"Download still in progress, skipping for now: {src.name}")
             continue
-        log(f"Analizzo {src.name} ...")
+        log(f"Parsing {src.name} ...")
         tmpdir = tempfile.mkdtemp(prefix="cscoach_")
         try:
             demo = decompress(src, tmpdir)
@@ -174,7 +174,7 @@ def process(folders, db, db_path, html_path, delete, failed):
                     inf = read_info(ip)
                     m["valve_id"], m["played"] = inf["valve_id"], info_played(inf)
                 except Exception as e:
-                    log(f"  .info non leggibile ({e}), uso la data del file.")
+                    log(f"  .info unreadable ({e}), using the file date.")
             known = {x.get("fp") for x in db["matches"]} | {x["id"] for x in db["matches"]} | {x.get("valve_id") for x in db["matches"]}
             if redo:
                 old = next(x for x in db["matches"] if x.get("id") == m["id"])
@@ -182,10 +182,10 @@ def process(folders, db, db_path, html_path, delete, failed):
                     if old.get(k) and not m.get(k):
                         m[k] = old[k]
                 db["matches"][db["matches"].index(old)] = m
-                log("  aggiornata con il dettaglio delle morti.")
+                log("  updated with the per-death detail.")
                 new += 1
             elif m["fp"] in known or m["id"] in known or (m.get("valve_id") and m["valve_id"] in known):
-                log("  già presente nell'archivio (stessa partita), non la aggiungo.")
+                log("  already in the archive (same match), not adding it.")
             else:
                 db["matches"].append(m)
                 db["matches"].sort(key=lambda x: (x.get("played", ""), x["patch"], x.get("added", "")))
@@ -193,7 +193,7 @@ def process(folders, db, db_path, html_path, delete, failed):
                     db["lite"] = [l for l in db["lite"] if l.get("valve_id") != m["valve_id"]]
                 new += 1
                 s = m["score"]
-                log(f"  {m['map']} {s['us']}-{s['them']} aggiunta all'archivio.")
+                log(f"  {m['map']} {s['us']}-{s['them']} added to the archive.")
             if key not in db["processed"]:
                 db["processed"].append(key)
             save_db(db_path, db)
@@ -201,19 +201,19 @@ def process(folders, db, db_path, html_path, delete, failed):
             if delete:
                 try:
                     src.unlink()
-                    log("  demo eliminata dal disco.")
+                    log("  demo deleted from disk.")
                 except OSError as e:
-                    log(f"  non riesco a eliminare la demo: {e}")
+                    log(f"  cannot delete the demo: {e}")
         except SystemExit as e:
-            log(f"  saltata: {e}")
-            db["processed"].append(key)       # demo di un altro giocatore: non riprovare
+            log(f"  skipped: {e}")
+            db["processed"].append(key)       # demo of another player: do not retry
             save_db(db_path, db)
         except Exception as e:
-            log(f"  ERRORE: {e}. La demo resta dov'è.")
+            log(f"  ERROR: {e}. The demo is left where it is.")
             failed.add(key)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
-    # partite di cui esiste solo il .info (demo non scaricata): salvo il tabellone Valve
+    # matches that only have a .info file (demo not downloaded): store the Valve scoreboard
     have = {x.get("valve_id") for x in db["matches"]} | {x.get("valve_id") for x in db["lite"]}
     for f in folders:
         p = Path(f)
@@ -222,11 +222,11 @@ def process(folders, db, db_path, html_path, delete, failed):
         for ip in sorted(p.glob("*.dem.info")):
             stem = ip.name[: -len(".dem.info")]
             if any((p / (stem + e)).exists() for e in EXTS):
-                continue                        # la demo c'è: la analizza il ciclo sopra
+                continue                        # the demo exists: the loop above handles it
             try:
                 lite = lite_from_info(ip, db["steamid"])
             except Exception as e:
-                log(f"  .info non leggibile: {ip.name} ({e})")
+                log(f"  .info unreadable: {ip.name} ({e})")
                 continue
             if not lite or lite["valve_id"] in have:
                 continue
@@ -235,7 +235,7 @@ def process(folders, db, db_path, html_path, delete, failed):
             have.add(lite["valve_id"])
             new += 1
             s = lite["score"]
-            log(f"Partita senza demo aggiunta dal tabellone: {lite['played'][:10]} {s['us']}-{s['them']} ({lite['k']}/{lite['a']}/{lite['d']}).")
+            log(f"Match without a demo added from the scoreboard: {lite['played'][:10]} {s['us']}-{s['them']} ({lite['k']}/{lite['a']}/{lite['d']}).")
             save_db(db_path, db)
             write_html(db, html_path)
     return new
@@ -243,12 +243,12 @@ def process(folders, db, db_path, html_path, delete, failed):
 
 def main():
     ap = argparse.ArgumentParser(description="Analizza le demo CS2 di una cartella e aggiorna la dashboard locale.")
-    ap.add_argument("--folder", action="append", help="cartella con le demo (si può ripetere). Predefinita: la cartella replays di CS2")
-    ap.add_argument("--steamid", default=None, help="il tuo SteamID64 (predefinito: quello già nell'archivio)")
-    ap.add_argument("--db", default=str(HERE / "cs_data.json"), help="archivio delle partite")
-    ap.add_argument("--html", default=str(HERE / "cs_coach.html"), help="dashboard da generare")
-    ap.add_argument("--delete", action="store_true", help="elimina ogni demo dopo averla analizzata")
-    ap.add_argument("--watch", action="store_true", help="resta in esecuzione e controlla la cartella ogni --interval secondi")
+    ap.add_argument("--folder", action="append", help="folder with demos (repeatable). Default: the CS2 replays folder")
+    ap.add_argument("--steamid", default=None, help="your SteamID64 (default: the one already in the archive)")
+    ap.add_argument("--db", default=str(HERE / "cs_data.json"), help="match archive")
+    ap.add_argument("--html", default=str(HERE / "cs_coach.html"), help="dashboard file to generate")
+    ap.add_argument("--delete", action="store_true", help="delete each demo after parsing it")
+    ap.add_argument("--watch", action="store_true", help="keep running and check the folder every --interval seconds")
     ap.add_argument("--interval", type=int, default=120)
     a = ap.parse_args()
 
@@ -260,16 +260,16 @@ def main():
         sys.exit("Manca lo SteamID. Esempio: python cs_coach.py --steamid 7656119XXXXXXXXXX --folder \"C:\\demo\"")
     folders = a.folder or [DEFAULT_FOLDER]
     failed = set()
-    log(f"Archivio: {db_path} ({len(db['matches'])} con demo, {len(db['lite'])} solo tabellone). Cartelle: {', '.join(folders)}")
+    log(f"Archive: {db_path} ({len(db['matches'])} with demo, {len(db['lite'])} scoreboard only). Folders: {', '.join(folders)}")
     n = process(folders, db, db_path, html_path, a.delete, failed)
-    write_html(db, html_path)      # sempre: cosi' la dashboard segue anche gli aggiornamenti del modello
-    log(f"Fatto: {n} partite nuove. Dashboard: {html_path}")
+    write_html(db, html_path)      # always: keeps the dashboard in sync with template updates
+    log(f"Done: {n} new matches. Dashboard: {html_path}")
     while a.watch:
         try:
             time.sleep(a.interval)
             n = process(folders, db, db_path, html_path, a.delete, failed)
             if n:
-                log(f"{n} partite nuove. Dashboard aggiornata: {html_path}")
+                log(f"{n} new matches. Dashboard updated: {html_path}")
         except KeyboardInterrupt:
             break
 

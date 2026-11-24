@@ -20,6 +20,39 @@ A Windows desktop app that analyzes your own Counter-Strike 2 matches (Premier, 
 
 Your data stays in the same folder (`cs_data.json`). To uninstall, delete the folder.
 
+## Project layout
+
+```
+cs_coach_app.py       desktop app (own window, auto-update loop)
+cs_coach.py           command line tool: finds demos, parses them, writes the dashboard
+cs_parser.py          demo parser (demoparser2) -> JSON statistics
+cs_geo.py             optional line-of-sight / cover analysis (awpy)
+dashboard_template.html   generated single-file dashboard (do not edit by hand)
+src/                  dashboard sources
+  index.html            page shell: lists, in order, every stylesheet and script that is inlined
+  css/                  base.css (dashboard), learn.css (e-learning, viewer, analysis)
+  js/core/              state, aggregation, views, economy, death analysis, rendering, events
+  js/learn/             e-learning section code
+  data/                 radar calibration (maps.json) and the static e-learning content (data/learn)
+  assets/radar/         radar images
+tools/build_dashboard.py  builds dashboard_template.html from src/
+```
+
+## Developing the dashboard
+
+Edit the files in `src/`, then regenerate the single-file template:
+
+```
+python tools/build_dashboard.py                                   # writes dashboard_template.html
+python tools/build_dashboard.py --sample cs_data.json --out preview.html   # preview with your own data
+```
+
+The app only needs the generated `dashboard_template.html`; it embeds your data into a copy of it as `cs_coach.html`. The scripts in `src/index.html` are classic scripts that share one global scope, so the order of the `<script>` lines matters. Code, comments and logs are in English; the text shown to the user (labels, coaching advice, e-learning content) is Italian.
+
+## Releases
+
+Pushing a tag that starts with `v` (for example `v1.0.0`) runs the GitHub Actions workflow, which builds `CSCoach-Windows.zip` and attaches it to a GitHub Release. Releases follow [semantic versioning](https://semver.org/); see the Releases page for the changelog of each version.
+
 ## Run from source
 
 Requires Python 3.10–3.13 (`demoparser2` does not support newer versions yet).

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CS Coach - applicazione desktop: finestra propria, aggiorna da sola le demo, nessun browser."""
+"""CS Coach - desktop app: own window, picks up new demos by itself, no browser needed."""
 import json
 import os
 import subprocess
@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 FROZEN = getattr(sys, "frozen", False)
-BUNDLE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))      # file incorporati (modello, parser)
+BUNDLE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))      # bundled files (template, parser)
 APPDIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 
 
@@ -23,17 +23,17 @@ def _writable(d):
         return False
 
 
-# dati accanto al programma (cosi' porti tutto dove vuoi); se la cartella e' protetta, in %APPDATA%
+# data lives next to the program (portable); if that folder is read-only, use %APPDATA%
 DATA = APPDIR if _writable(APPDIR) else Path(os.environ.get("APPDATA", str(Path.home()))) / "CSCoach"
 DATA.mkdir(parents=True, exist_ok=True)
 CFG, DB, HTML, LOGF = DATA / "config.json", DATA / "cs_data.json", DATA / "cs_coach.html", DATA / "cs_coach.log"
 
 _lf = open(LOGF, "a", encoding="utf-8", buffering=1)
-sys.stdout = sys.stderr = _lf                       # finestra senza console: tutto nel file di log
+sys.stdout = sys.stderr = _lf                       # windowed app without a console: everything goes to the log file
 sys.path.insert(0, str(BUNDLE))
 import cs_coach                                     # noqa: E402
 
-cs_coach.HERE = BUNDLE                              # modello dashboard_template.html incorporato
+cs_coach.HERE = BUNDLE                              # bundled dashboard_template.html
 INTERVAL = 120
 STATE = {"win": None, "status": "", "busy": False, "splash": True}
 
@@ -78,7 +78,7 @@ def guess_replays():
 
 
 def first_run():
-    """Prima configurazione: SteamID64 e cartella demo (finestre semplici)."""
+    """First-run setup: SteamID64 and demo folder (simple dialogs)."""
     import tkinter as tk
     from tkinter import filedialog, messagebox, simpledialog
     root = tk.Tk()
@@ -105,7 +105,7 @@ def first_run():
 
 
 def update(cfg):
-    """Cerca demo nuove, le analizza, rigenera la dashboard. Ritorna il numero di partite nuove."""
+    """Look for new demos, parse them and rebuild the dashboard. Returns the number of new matches."""
     if STATE["busy"]:
         return 0
     STATE["busy"] = True
@@ -121,7 +121,7 @@ def update(cfg):
         say(str(e))
         return 0
     except Exception as e:
-        print("ERRORE", repr(e))
+        print("ERROR", repr(e))
         say("Errore: " + str(e)[:120])
         return 0
     finally:

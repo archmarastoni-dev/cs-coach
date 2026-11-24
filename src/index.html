@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS Coach</title>
+<!--
+  Source shell of the CS Coach dashboard. It is a normal HTML page: every local <link>/<script> below is
+  inlined by tools/build_dashboard.py into the single self-contained dashboard_template.html that the app uses.
+  Scripts are classic (non-module) scripts sharing one global scope, so the ORDER below matters.
+  Scripts marked data-only="full" are left out of the lightweight (public artifact) build.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/learn.css" data-only="full">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="top-row">
+    <div class="brand"><h1>CS Coach</h1><span id="who"></span></div>
+    <div class="filters" id="filters"></div>
+  </div>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+</div></header>
+<div class="wrap"><main id="main"></main></div>
+<div id="tip"></div>
+<input type="file" id="imp" accept=".json,application/json" hidden>
+
+<!-- 1. Bootstrap: injected data (DATA, MAPS, RADARS) -->
+<script src="js/core/00-bootstrap.js"></script>
+<!-- 2. Core: utilities, aggregation, views, economy, death analysis -->
+<script src="js/core/10-utils.js"></script>
+<script src="js/core/20-aggregation.js"></script>
+<script src="js/core/30-references.js"></script>
+<script src="js/core/40-maps.js"></script>
+<script src="js/core/50-insights.js"></script>
+<script src="js/core/60-views.js"></script>
+<script src="js/core/70-economy.js"></script>
+<script src="js/core/80-death-analysis.js"></script>
+<script src="js/core/82-death-frames.js"></script>
+<script src="js/core/84-error-views.js"></script>
+<!-- 3. E-learning section (static content in data/learn, code in js/learn) -->
+<script src="data/learn/sources.js" data-only="full"></script>
+<script src="data/learn/maps.js" data-only="full"></script>
+<script src="data/learn/paths.js" data-only="full"></script>
+<script src="data/learn/general.js" data-only="full"></script>
+<script src="data/learn/general-sources.js" data-only="full"></script>
+<script src="data/learn/shots.js" data-only="full"></script>
+<script src="data/learn/videos.js" data-only="full"></script>
+<script src="data/learn/official-lineups.js" data-only="full"></script>
+<script src="data/learn/callouts.js" data-only="full"></script>
+<script src="data/learn/analysis-zones.js" data-only="full"></script>
+<script src="js/learn/10-learn-view.js" data-only="full"></script>
+<script src="js/learn/20-shots.js" data-only="full"></script>
+<script src="js/learn/30-videos-lineups.js" data-only="full"></script>
+<script src="js/learn/40-lightbox.js" data-only="full"></script>
+<script src="js/learn/50-callouts.js" data-only="full"></script>
+<script src="js/learn/60-throw-maps.js" data-only="full"></script>
+<script src="js/learn/70-match-analysis.js" data-only="full"></script>
+<!-- 4. Rendering, events, zoom and tooltip; the last script triggers the first render() -->
+<script src="js/core/90-render.js"></script>
+<script src="js/core/95-events.js"></script>
+<script src="js/core/96-zoom-tooltip.js"></script>
+</body>
+</html>
