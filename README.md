@@ -51,7 +51,7 @@ The app only needs the generated `dashboard_template.html`; it embeds your data 
 
 ## Releases
 
-Pushing a tag that starts with `v` (for example `v1.0.0`) runs the GitHub Actions workflow, which builds `CSCoach-Windows.zip` and attaches it to a GitHub Release. Releases follow [semantic versioning](https://semver.org/); see the Releases page for the changelog of each version.
+CS Coach is currently in **beta**: it works and is used daily, but expect rough edges and changes between versions. Pushing a tag that starts with `v` runs the GitHub Actions workflow, which builds `CSCoach-Windows.zip` and attaches it to a GitHub Release. Tags with a suffix, such as `v0.9.0-beta.1`, are published as pre-releases; `v1.0.0` will mark the first stable version. Releases follow [semantic versioning](https://semver.org/); see the Releases page for the changelog of each version.
 
 ## Run from source
 
