@@ -122,6 +122,7 @@ svg.radar.grab{cursor:grabbing}
 .ws h4{margin:0 0 2px;font-size:15px}.ws p{margin:3px 0;font-size:14px}
 .ws a,.srcs a{color:#7db8ff}
 .srcs{font-size:12px;color:var(--muted,#9fb0c3);margin-top:6px}
+.frames{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media(max-width:700px){.frames{grid-template-columns:repeat(2,1fr)}}
 .dcard{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:20px;align-items:start}
 @media(max-width:820px){.dcard{grid-template-columns:1fr}}
 .dcard .iss{border-left:3px solid var(--bad,#ff5c5c);padding:2px 0 2px 12px;margin:10px 0}
@@ -175,7 +176,7 @@ const state = {
   fMap: 'all', fSide: 'all', fRes: 'all',
   sel: null, selView: 'analisi', openRound: null,
   trend: 'rating', sortKey: 'idx', sortDir: -1,
-  eCat: 'all', ePlace: null, eShown: 6,
+  eCat: 'all', ePlace: null, eShown: 10,
   mapSel: null, layers: {kills:true, deaths:true, heat:false},
   uKinds: {smoke:true, flash:false, he:false, molotov:false}, uRef: false
 };
@@ -743,10 +744,12 @@ function econCards(m){
 }
 function viewMatch(m){
   const sc = m.score, partial = !m.complete ? `<div class="note">Questa partita sembra incompleta (nessuna squadra ha raggiunto 13 round): potrebbe essere finita per resa o abbandono.</div>` : '';
-  const tabs = [['analisi','Analisi'],['eco','Economia'],['score','Scoreboard'],['rounds','Round per round'],['map','Mappa']];
+  const tabs = [['analisi','Analisi'],['err','Errori'],['eco','Economia'],['score','Scoreboard'],['rounds','Round per round'],['map','Mappa']];
   let body = '';
   if(state.selView==='analisi'){
     body = matchAnalysis(m);
+  } else if(state.selView==='err'){
+    body = matchErrors(m);
   } else if(state.selView==='eco'){
     body = econCards(m);
   } else if(state.selView==='score'){
@@ -1095,6 +1098,9 @@ const SRC = {
   eco3:['Come leggere l\'economia: loss bonus e tipi di buy (Hotspawn)','https://www.hotspawn.com/counter-strike/guide/how-to-read-the-economy-in-cs2'],
   eco4:['The Ultimate CS2 Economy Guide (ProSettings)','https://prosettings.net/blog/cs2-economy-guide/'],
   eco5:['CS2 economy tips: managing money (Dignitas)','https://dignitas.gg/articles/cs2-economy-tips-managing-money-for-competitive-wins'],
+  gloss:['Glossario delle statistiche Leetify: flash, utility, trade','https://leetify.com/blog/leetify-stats-glossary'],
+  proexec:['Dieci concetti di utility negli execute professionistici (Gaming.net)','https://www.gaming.net/cs2-utility-concepts-behind-professional-site-executes/'],
+  review:['Come fare demo review: cinque categorie di errore e pattern ripetuti (GuildOrder)','https://guildorder.com/games/csgo/guides/demo-review-workflow'],
   cross:['Guida al crosshair placement (CSDB)','https://csdb.gg/guide-to-crosshair-placement/'],
   crossmore:['Crosshair placement oltre il "head level" (SCL)','https://scl.gg/article/93'],
   aim:['Come mirare in CS2: ordine delle abilità (CSDB)','https://csdb.gg/how-to-aim-in-cs2/'],
@@ -1260,17 +1266,158 @@ function posBlock(e){
   const R = posAnalysis(e); if(!R) return '';
   return `<div class="iss ok" style="border-color:#c58bff"><h4>Peek e posizionamento</h4>${R.lines.map(l=>`<p>• ${l}</p>`).join('')}<p class="sub">${R.geo?'Linee di tiro e coperture calcolate con la geometria reale della mappa (solo muri e oggetti fissi, non smoke né porte).':'Linee di tiro e coperture reali richiedono la geometria della mappa (installa awpy, vedi LEGGIMI): qui le conclusioni usano solo le posizioni.'}</p></div>`;
 }
+/* ---- fotogrammi della morte (demo nuove) ---- */
+const UT_DUR = {smoke:18, molotov:7, flash:1.2, he:0.7};
+const UT_COL = {smoke:'#c9d1da', flash:'#fff36b', he:'#ff8a3d', molotov:'#ff5a1f'};
+function framesStrip(m, e){
+  const c = e.c; if(!c || !c.fr || !c.fr.length) return '';
+  const map = m.map, ug = c.ug||[];
+  const raw = c.fr.flatMap(f=>f.p.map(p=>[p[0],p[1]])).concat(ug.map(u=>[u.x,u.y]));
+  const pt = ptFn(map, raw), P = raw.map(p=>pt(p[0],p[1]));
+  const x0=Math.min(...P.map(p=>p[0])), x1=Math.max(...P.map(p=>p[0])), y0=Math.min(...P.map(p=>p[1])), y1=Math.max(...P.map(p=>p[1]));
+  const sz = Math.max(x1-x0, y1-y0, 300) + 160, cx=(x0+x1)/2, cy=(y0+y1)/2;
+  const vb = [Math.max(0,Math.min(1000-sz,cx-sz/2)), Math.max(0,Math.min(1000-sz,cy-sz/2)), Math.min(sz,1000), Math.min(sz,1000)];
+  const k = vb[2]/1000, R = v => +(v*Math.max(k,0.28)).toFixed(1);
+  const figs = c.fr.map(f=>{
+    const sh = [];
+    for(const u of ug){
+      const a = f.dt - u.dt; if(a<0 || a>(UT_DUR[u.k]||1)) continue;
+      const [ux,uy] = pt(u.x,u.y), col = UT_COL[u.k];
+      const rad = u.k==='smoke' ? 140/ ( (MAPS[map]?MAPS[map].scale:5)*1.024) : u.k==='molotov' ? 120/((MAPS[map]?MAPS[map].scale:5)*1.024) : 60/((MAPS[map]?MAPS[map].scale:5)*1.024);
+      sh.push(`<circle cx="${ux.toFixed(1)}" cy="${uy.toFixed(1)}" r="${Math.max(rad,R(10)).toFixed(1)}" fill="${col}" fill-opacity="${u.k==='smoke'?.55:.4}" stroke="${col}" stroke-width="${R(2)}" ${tipAttr(({smoke:'Smoke',flash:'Flash',he:'HE',molotov:'Molotov'})[u.k]+(u.me?' (tua)':u.tm===1?' (compagno)':' (avversario)'))}/>`);
+    }
+    for(const p of f.p){
+      const [u,v] = pt(p[0],p[1]);
+      const col = p[2]===0 ? '#ffd34d' : p[2]===1 ? '#4aa3ff' : '#ff5c5c';
+      if(p[3]>=0){
+        const rad = p[3]*Math.PI/180, [u2,v2] = pt(p[0]+Math.cos(rad)*100, p[1]+Math.sin(rad)*100);
+        const ang = Math.atan2(v2-v, u2-u), L = R(70), w = 0.7;
+        const a1=[u+Math.cos(ang-w)*L, v+Math.sin(ang-w)*L], a2=[u+Math.cos(ang+w)*L, v+Math.sin(ang+w)*L];
+        sh.push(`<polygon points="${u.toFixed(1)},${v.toFixed(1)} ${a1[0].toFixed(1)},${a1[1].toFixed(1)} ${a2[0].toFixed(1)},${a2[1].toFixed(1)}" fill="${col}" fill-opacity=".22"/>`);
+      }
+      if(p[2]===0) sh.push(`<path d="M${u-R(10)} ${v-R(10)}L${u+R(10)} ${v+R(10)}M${u+R(10)} ${v-R(10)}L${u-R(10)} ${v+R(10)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round"/>`);
+      else sh.push(`<circle cx="${u.toFixed(1)}" cy="${v.toFixed(1)}" r="${R(p[4]?10:8)}" fill="${col}" stroke="${p[4]?'#fff':'#000'}" stroke-width="${R(p[4]?3.5:2)}"/>`);
+    }
+    return `<figure style="margin:0"><div style="border-radius:8px;overflow:hidden">${radarSVG(map, sh, {vb: vb.map(v=>+v.toFixed(1)).join(' ')})}</div><figcaption class="sub" style="text-align:center;margin-top:4px">${f.dt===0?'Alla morte':'−'+Math.abs(f.dt)+' s'}</figcaption></figure>`;
+  }).join('');
+  return `<div style="margin-top:14px"><h3 style="margin:0 0 4px">Come si è sviluppata la situazione (da −3 s alla morte)</h3>
+    <div class="sub">Quattro fotogrammi dalla mappa 2D: ✕ giallo = tu, blu = compagni, rosso = avversari (bordo bianco = chi ti ha ucciso). I coni mostrano dove guardava ognuno. Cerchi: smoke (grigio), flash (giallo), HE (arancio), molotov (rosso).</div>
+    <div class="frames">${figs}</div></div>`;
+}
+
+/* ---- errori dentro la singola partita ---- */
+function matchErrors(m){
+  const side = state.fSide;
+  const all = m.me.deaths.filter(e=>!e.teamkill && sideOk(side,e));
+  const L = all.filter(e=>e.c).map(e=>({m,e,rev:reviewDeath(e)}));
+  if(!all.length) return '<div class="empty">Nessuna morte in questa partita con i filtri scelti.</div>';
+  if(!L.length) return '<div class="empty">Per questa partita non c\'è il dettaglio delle morti: è stata analizzata prima di questa funzione e la demo non c\'è più.</div>';
+  const cnt = {}; for(const it of L) for(const id of new Set(it.rev.map(r=>r.id))) cnt[id] = (cnt[id]||0)+1;
+  const top = Object.keys(cnt).filter(k=>k!=='ok'&&k!=='scontro').sort((a,b)=>cnt[b]-cnt[a]).slice(0,3);
+  const noFr = L.filter(it=>!it.e.c.fr).length;
+  const fl = m.me.util.filter(u=>u.kind==='flash'&&u.en!==undefined);
+  const flTab = fl.length ? `<div class="card"><h2>Le tue flash in questa partita</h2><div class="sub">Per ogni flash: quanti nemici sono stati accecati (≥1,1 s), se hai accecato compagni o te stesso, e se un avversario accecato è stato ucciso subito dopo.</div><div class="scroll"><table><thead><tr><th>Round</th><th>Lato</th><th>Nemici accecati</th><th>Compagni</th><th>Tu</th><th>Kill dopo la flash</th><th>Giudizio</th></tr></thead><tbody>${fl.map(u=>`<tr><td>${u.r}</td><td><span class="side ${u.side}">${u.side}</span></td><td>${u.en}${u.bd?` (fino a ${u.bd} s)`:''}</td><td class="${u.tm?'down':''}">${u.tm}</td><td class="${u.sf>=1?'down':''}">${u.sf?u.sf+' s':'–'}</td><td>${u.fk?'<b class="up">sì</b>':'no'}</td><td style="text-align:left;white-space:normal">${u.en===0?'<span class="down">nessun nemico accecato: lancio sprecato</span>':u.fk?'<span class="up">ha portato una kill</span>':u.tm?'<span class="mid">hai accecato un compagno</span>':'<span class="mid">ha accecato ma senza kill</span>'}</td></tr>`).join('')}</tbody></table></div></div>` : '';
+  return `${noFr?`<div class="note">${noFr===L.length?'Per questa partita non ci sono i fotogrammi':'Per '+noFr+' morti non ci sono i fotogrammi'}: si registrano solo per le demo analizzate dopo questo aggiornamento. Resta la mappa con la posizione di tutti al momento della morte.</div>`:''}
+  <div class="card"><h2>Errori di questa partita</h2><div class="sub">${L.length} morti analizzate${top.length?'. Cause principali qui: '+top.map(k=>`<b>${ECAT[k]}</b> (${cnt[k]})`).join(', '):''}. Una morte può avere più cause; l'analisi su tutte le partite è nel tab "Errori e fix".</div></div>
+  ${flTab}
+  ${L.map(it=>deathCard(it)).join('')}`;
+}
+
+/* ---- come lanciare flash e smoke (tab Errori e fix) ---- */
+function medianOf(a){ if(!a.length) return NaN; const s=a.slice().sort((x,y)=>x-y), h=s.length>>1; return s.length%2?s[h]:(s[h-1]+s[h])/2; }
+function modeOf(a){ const c={}; let b=null; for(const x of a){ if(!x) continue; c[x]=(c[x]||0)+1; if(b===null||c[x]>c[b]) b=x; } return b; }
+function utilSpots(L){
+  const g = new Map();
+  for(const it of L){
+    const e = it.e, c = e.c, u = c.ut;
+    if(!(u.flash||u.smoke||u.he||u.molotov)) continue;
+    const key = it.m.map+'|'+e.side+'|'+(c.pl||'?');
+    const o = g.get(key)||{map:it.m.map, side:e.side, pl:c.pl||'?', kp:'?', kps:[], n:0, fl:0, sm:0, mo:0, he:0, d:[], w:[], fa:[], xf:0};
+    o.n++; o.kps.push(c.kp||''); if(u.flash) o.fl++; if(u.smoke) o.sm++; if(u.molotov) o.mo++; if(u.he) o.he++;
+    o.d.push(e.dist); o.w.push(e.w); o.fa.push(c.fa);
+    const pa = posAnalysis(e); if(pa && pa.tags.includes('crossfire')) o.xf++;
+    g.set(key,o);
+  }
+  const out = [...g.values()].filter(o=>o.n>=2).sort((a,b)=>b.n-a.n || b.fl-a.fl).slice(0,6);
+  for(const o of out) o.kp = modeOf(o.kps) || '?';
+  return out;
+}
+function throwAdvice(s){
+  const d = medianOf(s.d), w = modeOf(s.w), long = d>=25 || /awp|ssg|scar|g3sg1/i.test(w||''), out = [];
+  const kp = s.kp!=='?'?s.kp:'il punto da cui arriva l\'avversario', pl = s.pl!=='?'?s.pl:'la tua posizione';
+  if(s.fl){
+    if(d<=12) out.push({k:'Flash', t:`Distanza tipica ${f1(d,0)} m: usa una pop flash corta. Tasto destro (lancio basso), contro un muro vicino all'angolo in modo che scoppi dentro la visuale dell'avversario a ${kp}, e affacciati subito allo scoppio.`});
+    else if(d<=25) out.push({k:'Flash', t:`Distanza tipica ${f1(d,0)} m: usa una flash media (premi insieme i due tasti), fatta rimbalzare sopra o dietro l'angolo così scoppia su ${kp}; affacciati nel momento in cui scoppia, non prima.`});
+    else out.push({k:'Flash', t:`Distanza tipica ${f1(d,0)} m: una flash lunga (tasto sinistro, lancio alto sopra ${kp}) è possibile ma facile da girare; a questa distanza di solito è meglio una smoke che tagli la linea.`});
+  }
+  if(s.sm){
+    if(long) out.push({k:'Smoke', t:`Avversari a ${f1(d,0)} m${/awp|ssg/i.test(w||'')?' con arma da cecchino':''}: una smoke su ${kp} taglia la linea di tiro lunga mentre attraversi o ti riposizioni. È una lineup fissa: impara quella standard di questa mappa e ripetila 10 volte in una mappa di pratica.`});
+    else if(s.xf>=Math.ceil(s.n/2)) out.push({k:'Smoke', t:`Qui eri spesso esposto a più angoli insieme: una smoke su uno dei due angoli (${kp} o quello opposto) ti lascia un solo duello da gestire.`});
+    else if(d<10) out.push({k:'Molotov / HE', t:`Distanza ravvicinata (${f1(d,0)} m): la smoke serve poco, meglio una molotov o una HE su ${kp} per costringere l'avversario a lasciare l'angolo prima di aprirlo.`});
+    else out.push({k:'Smoke', t:`Una smoke su ${kp} da ${pl} toglie la visuale all'avversario e ti dà il tempo di far arrivare un compagno.`});
+  }
+  if(s.mo||s.he) out.push({k:'Molotov / HE', t:`Avevi ancora ${s.mo?'una molotov':'una HE'}: gettala su ${kp} prima di entrare in ${pl}, così l'avversario deve spostarsi o prende danno prima del duello.`});
+  return out;
+}
+function utilCoach(ms, L){
+  const side = state.fSide, U = utilAgg(ms, side);
+  const fl = ms.flatMap(m=>m.me.util.filter(u=>u.kind==='flash'&&u.en!==undefined&&sideOk(side,u)));
+  const sm = ms.flatMap(m=>m.me.util.filter(u=>u.kind==='smoke'&&u.ne!==undefined&&sideOk(side,u)));
+  const nF = U.flashAll||0;
+  const per = nF ? U.ef/nF : NaN, tpf = nF ? U.tf/nF : NaN;
+  const deathsU = L.filter(it=>{const u=it.e.c.ut; return u.flash||u.smoke||u.he||u.molotov;});
+  const VAL = {flash:200, smoke:300, he:300};
+  const val = it=>{const u=it.e.c.ut; return u.flash*VAL.flash + u.smoke*VAL.smoke + u.he*VAL.he + u.molotov*(it.e.side==='CT'?500:400);};
+  const lost = deathsU.reduce((a,it)=>a+val(it),0);
+  const tips = [];
+  if(nF>=10 && per<0.6) tips.push(`Accechi in media ${f1(per,2)} nemici per flash (riferimento tipico degli utenti Leetify: 0,6-0,9). Lancia le flash dove i nemici stanno guardando e fai rimbalzare la granata in modo che scoppi nella loro visuale, non dopo che si sono girati.`);
+  if(nF>=10 && tpf>=0.3) tips.push(`Accechi ${f1(tpf,2)} compagni per flash: avvisa prima di lanciare ("flash in ...") e non lanciare attraverso le zone dove i compagni stanno entrando.`);
+  if(L.length>=8 && deathsU.length/L.length>=0.4) tips.push(`In ${deathsU.length} morti su ${L.length} (${pc(deathsU.length/L.length)}) avevi ancora utility: in media circa ${Math.round(lost/deathsU.length/10)*10} $ di granate ancora in tasca a ogni morte. Prima di ogni contatto lancia la prima flash o smoke che hai in mano.`);
+  if(sm.length>=5){ const gd = sm.filter(u=>u.ne>=1).length; if(gd/sm.length<0.5) tips.push(`Solo il ${pc(gd/sm.length)} delle tue smoke aveva un nemico entro ~15 m dal punto di scoppio (metrica Leetify): molte vengono lanciate senza che nessuno stia arrivando. Tienile per l'execute o per tagliare un push che stai sentendo.`); }
+  const spots = utilSpots(L);
+  const spotHtml = spots.map(s=>{
+    const adv = throwAdvice(s);
+    return `<div class="iss ok" style="border-color:#e8c53a"><h4>${mapName(s.map)} · ${s.side} · in ${esc(s.pl)}${s.kp!=='?'&&s.kp!==s.pl?` (di solito ti uccide chi è a ${esc(s.kp)})`:''} <span class="sub" style="display:inline">(${s.n} ${s.n===1?'morte':'morti'} con utility in tasca${s.fl?`, ${s.fl} con flash`:''}${s.sm?`, ${s.sm} con smoke`:''})</span></h4>${adv.map(a=>`<p><b>${esc(a.k)}:</b> ${esc(a.t)}</p>`).join('')}</div>`;
+  }).join('');
+  const flN = fl.length;
+  const kpis = [
+    nF ? kpi('Nemici accecati per flash', f1(per,2), `${U.ef} su ${nF} flash (≥1 s) · tipico 0,6-0,9`, per>=0.6?'up':'down') : '',
+    nF ? kpi('Compagni accecati per flash', f1(tpf,2), `${U.tf} in totale`, tpf<=0.25?'up':'down') : '',
+    flN>=5 ? kpi('Flash che portano una kill', pc(fl.filter(u=>u.fk).length/flN), `su ${flN} flash analizzate`, fl.filter(u=>u.fk).length/flN>=0.1?'up':'mid') : '',
+    flN>=5 ? kpi('Flash a vuoto', pc(fl.filter(u=>u.en===0).length/flN), 'nessun nemico accecato', fl.filter(u=>u.en===0).length/flN<=0.4?'up':'down') : '',
+    sm.length>=5 ? kpi('Smoke con nemici vicini', pc(sm.filter(u=>u.ne>=1).length/sm.length), `su ${sm.length} smoke`, '') : '',
+    L.length ? kpi('Morti con utility in tasca', pc(deathsU.length/L.length), `${deathsU.length} su ${L.length}`, deathsU.length/L.length<=0.25?'up':'down') : ''
+  ].join('');
+  return `<div class="card"><h2>Flash e smoke: come lanciarle</h2>
+    <div class="sub">Gli analisti guardano l'utility come un lavoro per un compagno (togliere una visuale, spostare un difensore, sostenere un duello, aprire la strada alla bomba) e non come granate sparse. Qui i tuoi numeri e, per i punti dove muori con utility in tasca, come usarla.</div>
+    <div class="grid kpis" style="margin-top:10px">${kpis}</div>
+    ${tips.length?`<h3 style="margin:14px 0 4px">Cosa dicono i numeri</h3><ul style="margin:0;padding-left:20px">${tips.map(t=>`<li style="margin:4px 0">${esc(t)}</li>`).join('')}</ul>`:''}
+    ${!flN?`<p class="sub" style="margin-top:8px">I dettagli per ogni flash (nemici accecati, kill dopo la flash) e per ogni smoke si registrano solo per le demo nuove.</p>`:''}
+    <h3 style="margin:16px 0 2px">Dove muori con utility in tasca</h3>
+    <div class="sub">Raggruppo le morti per mappa, lato e posizione in cui sei morto. Le indicazioni sono principi ricavati da distanza, arma e numero di avversari; il punto esatto di lancio (lineup) va imparato con una mappa di pratica.</div>
+    ${spotHtml || '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}
+    <h3 style="margin:16px 0 2px">Tecnica di lancio</h3>
+    <ul style="margin:6px 0 0;padding-left:20px">
+      <li style="margin:4px 0"><b>Tasto sinistro</b> = lancio lungo, <b>destro</b> = lancio corto basso, <b>entrambi</b> = distanza media. Correre in avanti aumenta la distanza, indietro la riduce; da fermo il lancio è più ripetibile.</li>
+      <li style="margin:4px 0"><b>Jump throw</b>: tieni premuto il tasto sinistro, salta e rilascia mentre sali. Il bind a tasto unico non funziona più sui server ufficiali, si fa a mano.</li>
+      <li style="margin:4px 0"><b>Pop flash</b>: scoppia appena entra nella visuale del nemico, quindi non gli dà il tempo di girarsi. Se è per un compagno avvisalo ("flash in ...") e fallo uscire nel momento dello scoppio; se è per te lanciala poco prima di uscire. Una flash serve a chi segue: se nessuno la sfrutta, è sprecata.</li>
+      <li style="margin:4px 0"><b>Smoke</b>: dura circa 20 s e reagisce a HE e proiettili. Una molotov viene spenta da una smoke. Dopo il piazzamento tieni una smoke o una flash per il retake.</li>
+      <li style="margin:4px 0"><b>Priorità di acquisto</b> a soldi limitati: smoke, una flash, molotov, seconda flash, HE.</li>
+      <li style="margin:4px 0"><b>Allenamento</b>: in una mappa offline con <code>sv_cheats 1</code> usa <code>cl_grenadepreview 1</code> (traiettoria) e <code>sv_rethrow_last_grenade</code> (ripeti l'ultimo lancio). Ripeti ogni lineup 10 volte.</li>
+    </ul>
+    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div>`;
+}
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;
   const bad = rev.some(r=>r.sev==='alta'), tag = e.traded ? 'tradata' : 'non tradata';
-  return `<div class="card"><div class="dcard"><div>${deathRadar(m,e)}
+  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div>${deathRadar(m,e)}
       <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div>
     <div><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
       <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div>
       ${recentBlock(e)}
       ${posBlock(e)}
       ${it.rev.map(r=>`<div class="iss ${SEV[r.sev]}"><h4>${esc(r.title)}</h4><p>${esc(r.why)}</p><p class="fix"><b>Cosa fare:</b> ${esc(r.fix)}</p></div>`).join('')}
-      <div class="iss ok" style="border-color:#4aa3ff"><h4>Tattica consigliata per un round simile</h4>${tactics(e,rev).map(t=>`<p>• ${esc(t)}</p>`).join('')}<p class="srcs">Fonti: ${srcLinks([...new Set(rev.flatMap(r=>SRC_BY[r.id]||[]))])||'vedi elenco in fondo alla pagina'}</p></div></div></div></div>`;
+      <div class="iss ok" style="border-color:#4aa3ff"><h4>Tattica consigliata per un round simile</h4>${tactics(e,rev).map(t=>`<p>• ${esc(t)}</p>`).join('')}<p class="srcs">Fonti: ${srcLinks([...new Set(rev.flatMap(r=>SRC_BY[r.id]||[]))])||'vedi elenco in fondo alla pagina'}</p></div></div></div>${framesStrip(m,e)}</div>`;
 }
 function timingBars(ms){
   const BIN = 15, N = 8, kills = Array(N).fill(0), deaths = Array(N).fill(0);
@@ -1339,6 +1486,24 @@ function aimSection(ms){
     ${D.length?`<h3 style="margin:14px 0 2px">Dove guardavi quando ti hanno sparato</h3><div class="sub">Angolo tra il tuo mirino e l'avversario quando ha iniziato a sparare.</div>${stackBar([['Già su di lui (≤15°)',ready,'#2bd47d'],['Mirino lontano (15-40°)',D.length-ready-away,'#e8c53a'],['Guardavi altrove (>40°)',away,'#ff5c5c']])}`:''}
     ${tips.length?`<h3 style="margin:14px 0 4px">Cosa dicono i numeri</h3><ul style="margin:0;padding-left:20px">${tips.map(t=>`<li style="margin:4px 0">${esc(t)}</li>`).join('')}</ul>`:`<p class="sub" style="margin-top:12px">Nessun problema marcato nei numeri disponibili.</p>`}</div>`;
 }
+const FOCUS = {isolato:'Resta vicino ai compagni nei duelli', notrade:'Peekate insieme per poter tradare', util:'Usa flash e smoke prima di entrare', flash:'Non fare peek da accecato', entry:'Entra solo con supporto', corsa:'Rallenta prima degli angoli', mira:'Pre-aim: mirino già sull\'angolo', presto:'Non farti vedere troppo presto', dopokill:'Cambia posizione dopo una kill'};
+function trendCard(ms, L, top){
+  if(!top.length) return '';
+  const order = ms.slice().sort((a,b)=>cmpM(b,a)).map(m=>m.id), recent = new Set(order.slice(0,5));
+  const R = L.filter(it=>recent.has(it.m.id)), O = L.filter(it=>!recent.has(it.m.id));
+  const k = top[0], share = A => A.length ? A.filter(it=>it.rev.some(r=>r.id===k)).length/A.length : NaN;
+  let txt = '';
+  if(R.length>=6 && O.length>=6){
+    const r = share(R), o = share(O), d = r-o;
+    txt = d<=-0.08 ? `Nelle ultime 5 partite questa causa è scesa dal ${pc(o)} al ${pc(r)} delle morti: il lavoro sta funzionando.` : d>=0.08 ? `Nelle ultime 5 partite è salita dal ${pc(o)} al ${pc(r)}: è il punto su cui insistere.` : `Nelle ultime 5 partite è stabile (${pc(r)} contro ${pc(o)} prima).`;
+  } else txt = 'Servono almeno 6 morti analizzate nelle ultime 5 partite e 6 prima per vedere l\'andamento.';
+  return `<div class="card"><h2>Il tuo obiettivo per le prossime 5 partite</h2>
+    <div class="sub">Chi fa demo review in modo strutturato sceglie un solo schema che si ripete (almeno tre morti simili) e lavora su quello per cinque partite, invece di cercare di correggere tutto.</div>
+    <p style="margin:10px 0 4px;font-size:1.05em"><b>${esc(FOCUS[k])}</b> <span class="sub" style="display:inline">(${ECAT[k]}: ${pc(share(L))} delle tue morti)</span></p>
+    <p class="sub" style="margin:0">${esc(DRILL[k]||'')}</p>
+    <p style="margin:8px 0 0">${esc(txt)}</p>
+    <p class="srcs">Fonti: ${srcLinks(['review'])}</p></div>`;
+}
 function viewErrori(ms){
   if(!ms.length) return '<div class="empty">Nessuna partita con questi filtri.</div>';
   const L = deathList(ms);
@@ -1348,7 +1513,6 @@ function viewErrori(ms){
   const top = order.filter(k=>k!=='ok'&&k!=='scontro').sort((a,b)=>cnt[b]-cnt[a]).slice(0,3);
   let vis = state.eCat==='all' ? L : L.filter(it=>it.rev.some(r=>r.id===state.eCat));
   if(state.ePlace) vis = vis.filter(it=>it.m.map+'|'+it.e.c.pl===state.ePlace);
-  const FOCUS = {isolato:'Resta vicino ai compagni nei duelli', notrade:'Peekate insieme per poter tradare', util:'Usa flash e smoke prima di entrare', flash:'Non fare peek da accecato', entry:'Entra solo con supporto', corsa:'Rallenta prima degli angoli', mira:'Pre-aim: mirino già sull\'angolo', presto:'Non farti vedere troppo presto', dopokill:'Cambia posizione dopo una kill'};
   const miss = ms.filter(m=>m.me.deaths.length && !m.me.deaths.some(e=>e.c)).length;
   const missNote = miss ? `<div class="note">${miss} ${miss===1?'partita non ha':'partite non hanno'} il dettaglio delle morti perché ${miss===1?'è stata analizzata':'sono state analizzate'} prima di questa funzione e la demo è già stata cancellata. Contano solo le demo da ora in poi.</div>` : '';
   const aim = aimSection(ms);
@@ -1357,12 +1521,15 @@ function viewErrori(ms){
   <div class="card"><h2>Cosa ti costa più round</h2><div class="sub">Su ${L.length} morti analizzate (${cnt.scontro||0} in pieno scontro, ${pc((cnt.scontro||0)/L.length)}: kill appena fatta o compagno caduto vicino, non conteggiate come errori di reazione). Una morte può avere più cause. I segnali sono regole sui dati della demo: valuta sempre se nel contesto del round avevano senso.</div>
     ${top.length?`<ol style="margin:6px 0 0;padding-left:20px">${top.map(k=>`<li style="margin:4px 0"><b>${FOCUS[k]}</b> (${ECAT[k]}: ${cnt[k]} morti su ${L.length}, ${pc(cnt[k]/L.length)}). <span class="sub">Come allenarlo: ${esc(DRILL[k]||'')}</span></li>`).join('')}</ol>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
     <div class="chips" style="margin-top:14px"><button data-ecat="all" aria-pressed="${state.eCat==='all'}">Tutte (${L.length})</button>${order.map(k=>`<button data-ecat="${k}" aria-pressed="${state.eCat===k}">${ECAT[k]} (${cnt[k]})</button>`).join('')}</div></div>
+  ${trendCard(ms, L, top)}
+  ${utilCoach(ms, L)}
   ${aim}
   ${posSummary(L)}
   ${workshopCard(ms,cnt,L)}
   <div class="grid g2">${timingBars(ms)}${placeTable(L)}</div>
-  <h2 style="margin:22px 0 8px">Le tue morti, una per una</h2>
-  ${vis.slice(0,state.eShown).map(deathCard).join('') || '<div class="empty">Nessuna morte con questo filtro.</div>'}
+  <h2 style="margin:22px 0 4px">Le singole morti</h2>
+  <div class="sub" style="margin-bottom:8px">Il dettaglio di ogni morte (mappa, fotogrammi, cosa fare) è dentro la singola partita, nel tab "Errori". Clicca una riga per aprirla direttamente.</div>
+  ${vis.length?`<div class="card"><div class="scroll"><table class="timeline"><thead><tr><th>Partita</th><th>Mappa</th><th>Round</th><th>Lato</th><th>Dove</th><th>Cause</th></tr></thead><tbody>${vis.slice(0,state.eShown).map(it=>`<tr class="click" data-gomatch="${it.m.id}" data-gofocus="d-${it.m.id}-${it.e.r}-${it.e.tick}"><td>#${idxOf(it.m)}</td><td>${mapName(it.m.map)}</td><td>${it.e.r}</td><td><span class="side ${it.e.side}">${it.e.side}</span></td><td style="text-align:left">${esc(it.e.c.pl||'?')}</td><td style="text-align:left;white-space:normal">${it.rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).join(', ')||'nessuna evidente'}</td></tr>`).join('')}</tbody></table></div></div>`:'<div class="empty">Nessuna morte con questo filtro.</div>'}
   ${vis.length>state.eShown?`<p style="text-align:center"><button class="btn" data-emore="1">Mostra altre (${vis.length-state.eShown})</button></p>`:''}
   ${sourcesCard()}`;
 }
@@ -1393,6 +1560,7 @@ function render(){
   else html = ms.length ? viewCoach(ms) : '<div class="empty">Nessuna partita con questi filtri.</div>';
   $('#main').innerHTML = html;
   initZoom();
+  if(state.focusDeath){ const el = document.getElementById(state.focusDeath); state.focusDeath = null; if(el) el.scrollIntoView({block:'start'}); }
 }
 function setTab(t){ state.tab = t; state.sel = null; try{ history.replaceState(null,'','#'+t); }catch(e){} render(); window.scrollTo(0,0); }
 
@@ -1403,9 +1571,10 @@ document.addEventListener('click', e => {
   if(t.closest('#fRes')){ state.fRes = t.dataset.v; return render(); }
   if(t.closest('#mode')){ state.mode = t.dataset.v; return render(); }
   if(t.id==='btnImp'||t.id==='btnImp2') return $('#imp').click();
-  if(t.dataset.ecat!==undefined){ state.eCat = t.dataset.ecat; state.ePlace = null; state.eShown = 6; return render(); }
-  if(t.dataset.eplace!==undefined){ state.ePlace = state.ePlace===t.dataset.eplace ? null : t.dataset.eplace; state.eShown = 6; return render(); }
-  if(t.dataset.emore){ state.eShown += 6; return render(); }
+  if(t.dataset.ecat!==undefined){ state.eCat = t.dataset.ecat; state.ePlace = null; state.eShown = 10; return render(); }
+  if(t.dataset.eplace!==undefined){ state.ePlace = state.ePlace===t.dataset.eplace ? null : t.dataset.eplace; state.eShown = 10; return render(); }
+  if(t.dataset.emore){ state.eShown += 10; return render(); }
+  if(t.dataset.gomatch){ state.tab='partite'; state.sel = t.dataset.gomatch; state.selView='err'; state.focusDeath = t.dataset.gofocus||null; return render(); }
   if(t.dataset.trend){ state.trend = t.dataset.trend; return render(); }
   if(LITE && (t.dataset.gotoMap||t.dataset.match||t.id==='btnImp')) return;
   if(t.dataset.gotoMap){ state.mapSel = t.dataset.gotoMap; return setTab('mappe'); }
@@ -1453,7 +1622,7 @@ function alert_(msg){
 const ZS = {};
 function initZoom(){
   document.querySelectorAll('svg.radar').forEach((svg, idx) => {
-    if(svg.parentNode.classList.contains('zwrap')) return;
+    if(svg.parentNode.classList.contains('zwrap') || svg.closest('.frames')) return;
     const wrap = document.createElement('div'); wrap.className = 'zwrap';
     svg.parentNode.insertBefore(wrap, svg); wrap.appendChild(svg);
     const v0 = svg.getAttribute('viewBox').trim().split(/\s+/).map(Number);

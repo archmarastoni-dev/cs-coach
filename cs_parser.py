@@ -445,7 +445,7 @@ def parse_demo(path, me_id):
             sd = side_name(teams.get(e.user_steamid, 0))
             util_rows.append({"sid": e.user_steamid, "kind": kind, "r": r, "side": sd,
                                "t": rnd((int(e.tick) - freeze_end[r]) / TICKRATE),
-                               "lx": rnd(e.x, 0), "ly": rnd(e.y, 0), "lz": rnd(e.z, 0), "fire_tick": ft})
+                               "lx": rnd(e.x, 0), "ly": rnd(e.y, 0), "lz": rnd(e.z, 0), "fire_tick": ft, "tick": int(e.tick)})
     # posizione di lancio (solo per me)
     me_util = [u for u in util_rows if u["sid"] == me_id]
     ticks_needed = sorted({u["fire_tick"] for u in me_util if u["fire_tick"]})
@@ -456,9 +456,14 @@ def parse_demo(path, me_id):
         pdf = pdf[pdf["steamid"] == me_id]
         for row in pdf.itertuples(index=False):
             pos[int(row.tick)] = (rnd(row.X, 0), rnd(row.Y, 0), rnd(row.pitch, 1), rnd(row.yaw, 1))
+    # esito dei miei lanci: flash (nemici/compagni accecati, kill successive) e smoke (nemici vicini)
+    try:
+        _utility_outcomes(p, me_id, me_util, blinds, deaths, team_of, round_of)
+    except Exception:
+        pass
     me_util_out = []
     for u in me_util:
-        o = {k: v for k, v in u.items() if k not in ("sid", "fire_tick")}
+        o = {k: v for k, v in u.items() if k not in ("sid", "fire_tick", "tick")}
         if u["fire_tick"] and u["fire_tick"] in pos:
             o["ox"], o["oy"], o["pitch"], o["yaw"] = pos[u["fire_tick"]]
             o["fly"] = rnd(0, 1)
@@ -555,7 +560,7 @@ def parse_demo(path, me_id):
     me_p = next(x for x in plist if x["sid"] == me_id)
     try:
         ptk = {int(r): int(t) for r, t in zip(plants["round"], plants["tick"]) if r == r} if "round" in plants.columns else {}
-        death_context(p, me_id, [e for e in me_deaths_ev if not e.get("teamkill")], team_of, names, ptk, by_round_deaths, det, round_of, map_name)
+        death_context(p, me_id, [e for e in me_deaths_ev if not e.get("teamkill")], team_of, names, ptk, by_round_deaths, det, round_of, map_name, util_rows)
     except Exception as ex:   # il contesto e' un extra: non deve mai bloccare l'analisi
         print(f"  [avviso] contesto morti non calcolato: {ex}")
     mov = None
@@ -607,7 +612,57 @@ def _look(r):
     return out
 
 
-def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=None, det=None, round_of=None, map_name=None):
+def _utility_outcomes(p, me_id, me_util, blinds, deaths, team_of, round_of):
+    """Aggiunge a ogni mia flash l'esito (en, tm, bd, fk, sf) e a ogni mia smoke il numero di nemici vicini (ne)."""
+    flashes = [u for u in me_util if u["kind"] == "flash" and u.get("tick")]
+    for u in flashes:
+        r, t0 = u["r"], u["tick"]
+        en = tm = fk = 0
+        bd = 0.0
+        sf = 0.0
+        tms = team_of.get(r, {})
+        mine = tms.get(me_id)
+        hit = []
+        for b in blinds.itertuples(index=False):
+            if b.attacker_steamid != me_id or abs(int(b.tick) - t0) > 4:
+                continue
+            dur = float(nz(b.blind_duration))
+            v = b.user_steamid
+            if v == me_id:
+                sf = max(sf, dur)
+            elif tms.get(v) == mine:
+                if dur >= 1.1:
+                    tm += 1
+            elif dur >= 1.1:
+                en += 1
+                bd = max(bd, dur)
+                hit.append((v, int(b.tick), dur))
+        for v, tk, dur in hit:
+            for d in deaths.itertuples(index=False):
+                if d.user_steamid == v and tk <= int(d.tick) <= tk + int(dur * TICKRATE) and tms.get(d.attacker_steamid) == mine:
+                    fk += 1
+                    break
+        u["en"], u["tm"], u["bd"], u["fk"], u["sf"] = en, tm, round(bd, 1), fk, round(sf, 1)
+    smokes = [u for u in me_util if u["kind"] == "smoke" and u.get("tick")]
+    if smokes:
+        df = p.parse_ticks(["X", "Y", "team_num", "health"], ticks=sorted({u["tick"] for u in smokes}))
+        df["steamid"] = df["steamid"].apply(sid)
+        for u in smokes:
+            tms = team_of.get(u["r"], {})
+            mine = tms.get(me_id)
+            sub = df[df["tick"] == u["tick"]]
+            ne = 0
+            for row in sub.itertuples(index=False):
+                if row.steamid == me_id or nz(row.health) <= 0:
+                    continue
+                if tms.get(row.steamid, int(nz(row.team_num))) == mine:
+                    continue
+                if math.hypot(float(row.X) - u["lx"], float(row.Y) - u["ly"]) <= 800:
+                    ne += 1
+            u["ne"] = ne
+
+
+def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=None, det=None, round_of=None, map_name=None, util_rows=None):
     """Per ogni mia morte salva il contesto: posizioni di tutti, scia, compagni vicini, utility rimasta.
     La classificazione degli errori avviene nella dashboard, cosi' si puo' cambiare senza rileggere le demo."""
     if not evs:
@@ -683,6 +738,30 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
             "mn": str(names.get(near[0], ""))[:14] if near else "", "ma": len(mates), "fa": len([1 for s, r in foes]) ,
             "ut": ut, "fl": round(fl, 1), "pb": bool(pt and e["tick"] > pt), "pos": pos,
         }
+        # fotogrammi: tutti i giocatori vivi a 3, 2, 1 e 0 secondi dalla morte (+ utility attiva)
+        try:
+            fr = []
+            for kk in (6, 4, 2, 0):
+                sn = alive_at(max(1, base - kk * STEP))
+                if not sn:
+                    continue
+                fr.append({"dt": -kk * 0.5, "p": [[int(float(r.X)), int(float(r.Y)),
+                           0 if s == me_id else (1 if int(nz(r.team_num)) == myteam else 2),
+                           int(nz(_look(r).get("yw"), -1)) if _look(r) else -1, 1 if s == e.get("ksid") else 0] for s, r in sn.items()]})
+            ug = []
+            mt = team_of.get(e["r"], {}).get(me_id)
+            for u in (util_rows or []):
+                if u["r"] != e["r"] or u["kind"] not in ("smoke", "flash", "he", "molotov"):
+                    continue
+                dtu = u["t"] - e["t"]
+                if -20 <= dtu <= 1:
+                    ug.append({"k": u["kind"], "x": int(u["lx"]), "y": int(u["ly"]), "dt": round(dtu, 1),
+                               "tm": 1 if team_of.get(e["r"], {}).get(u["sid"]) == mt else 2, "me": 1 if u["sid"] == me_id else 0})
+            if fr:
+                e["c"]["fr"] = fr
+                e["c"]["ug"] = ug
+        except Exception:
+            pass
         # geometria reale della mappa (opzionale: richiede awpy e i dati di mappa)
         if map_name and _geo is not None:
             try:
