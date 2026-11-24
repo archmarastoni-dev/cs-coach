@@ -71,6 +71,24 @@ def rnd(v, n=1):
     return round(float(v), n)
 
 
+def half_of(r):
+    """Side-swap period of a round: 1 and 2 are the regulation halves (MR12); every overtime half is 3 rounds."""
+    return 1 if r <= 12 else 2 if r <= 24 else 3 + (r - 25) // 3
+
+
+def match_complete(wins, losses):
+    """True if the match reached a decision: 13 rounds in regulation, then +3 per overtime (16, 19, ...).
+    A tie after an overtime counts as finished too. A match that stops earlier was cut short (forfeit, crash)."""
+    hi, lo = max(wins, losses), min(wins, losses)
+    if hi <= 12:
+        return False
+    if hi == 13 and lo <= 11:
+        return True
+    if hi >= 16 and (hi - 16) % 3 == 0 and hi - lo >= 2:
+        return True
+    return wins == losses and wins >= 15 and (wins - 15) % 3 == 0     # tie after an overtime
+
+
 def side_name(team_num):
     try:
         return {2: "T", 3: "CT"}.get(int(team_num), "?")
@@ -123,11 +141,31 @@ def parse_demo(path, me_id):
     fe = p.parse_event("round_freeze_end").sort_values("tick")
     re_ = p.parse_event("round_end").sort_values("tick")
     re_ = re_[re_["round"].notna()]
-    rs = rs.drop_duplicates("round")
-    start_tick = dict(zip(rs["round"].astype(int), rs["tick"].astype(int)))
-    end_tick = dict(zip(re_["round"].astype(int), re_["tick"].astype(int)))
-    winner = dict(zip(re_["round"].astype(int), re_["winner"]))
-    reason = dict(zip(re_["round"].astype(int), re_["reason"]))
+    try:
+        match_start = int(p.parse_event("begin_new_match")["tick"].max())
+    except Exception:
+        match_start = None
+    played = re_[re_["winner"].notna()]                       # real round ends (the tick-1 placeholder has no winner)
+    if match_start is not None and (played["tick"] < match_start).any():
+        # A round was played before the match restart: the FACEIT/ESL knife round that decides the sides.
+        # The engine's round counter restarts after it, so numbers cannot be paired between events.
+        # Drop the knife round and number the real rounds in order of their end tick.
+        start_tick, end_tick, winner, reason = {}, {}, {}, {}
+        rs_ticks = sorted(int(t) for t in rs["tick"])
+        prev_end = int(played[played["tick"] < match_start]["tick"].max())
+        real = played[played["tick"] > match_start]
+        for n, row in enumerate(real.itertuples(index=False), 1):
+            et = int(row.tick)
+            cand = [t for t in rs_ticks if prev_end < t < et]
+            start_tick[n] = cand[-1] if cand else prev_end
+            end_tick[n], winner[n], reason[n] = et, row.winner, row.reason
+            prev_end = et
+    else:
+        rs = rs.drop_duplicates("round")
+        start_tick = dict(zip(rs["round"].astype(int), rs["tick"].astype(int)))
+        end_tick = dict(zip(re_["round"].astype(int), re_["tick"].astype(int)))
+        winner = dict(zip(re_["round"].astype(int), re_["winner"]))
+        reason = dict(zip(re_["round"].astype(int), re_["reason"]))
     rounds = sorted(r for r in end_tick if r in start_tick)
     # freeze_end per round: first freeze_end after round_start
     fe_ticks = sorted(fe["tick"].astype(int).tolist())
@@ -396,7 +434,8 @@ def parse_demo(path, me_id):
                 "team_equip": int(sum(v for s, v in equip[r].items() if teams.get(s) == teams[me_id])),
                 "enemy_equip": int(sum(v for s, v in equip[r].items() if teams.get(s) != teams[me_id])),
                 "len": rnd((end_tick[r] - freeze_end[r]) / TICKRATE),
-                "half": 1 if r <= 12 else 2,
+                "half": half_of(r),
+                "ot": r > 24,
             })
             bm = buys.get(r, {}).get(me_id)
             if bm:
@@ -521,7 +560,7 @@ def parse_demo(path, me_id):
     t_w = sum(1 for x in per_round_me if x["side"] == "T" and x["won"])
     t_n = sum(1 for x in per_round_me if x["side"] == "T")
     result = "W" if me_wins > me_loss else ("L" if me_wins < me_loss else "D")
-    complete = max(me_wins, me_loss) >= 13
+    complete = match_complete(me_wins, me_loss)
 
     # ---------------------------------------------------------------- players
     def player_out(s):
