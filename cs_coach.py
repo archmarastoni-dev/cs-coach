@@ -124,7 +124,7 @@ def decompress(src, tmpdir):
         try:
             import zstandard
         except ImportError:
-            raise RuntimeError("Per i file .zst installa: pip install zstandard")
+            raise RuntimeError("For .zst files install: pip install zstandard")
         with open(src, "rb") as a, open(dst, "wb") as b:
             zstandard.ZstdDecompressor().copy_stream(a, b)
     else:

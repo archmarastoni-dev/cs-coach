@@ -72,7 +72,10 @@ def rnd(v, n=1):
 
 
 def side_name(team_num):
-    return {2: "T", 3: "CT"}.get(int(team_num), "?")
+    try:
+        return {2: "T", 3: "CT"}.get(int(team_num), "?")
+    except (TypeError, ValueError):
+        return "?"                           # team unknown (e.g. spectator, coach, bot)
 
 
 def _norm_item(x):
@@ -264,6 +267,8 @@ def parse_demo(path, me_id):
 
         for d in rd_deaths:
             v, k, a = d.user_steamid, d.attacker_steamid, d.assister_steamid
+            if not v or v not in teams:
+                continue                     # victim is not a tracked player this round (bot, coach, rejoin)
             tv = teams.get(v)
             tk = teams.get(k) if k else None
             tsec = (int(d.tick) - t0) / TICKRATE
@@ -276,7 +281,7 @@ def parse_demo(path, me_id):
                 if (r, int(d.tick), v) in traded_victims:
                     involved[v]["tr"] += 1
                     S[v]["deaths_traded"] += 1
-            if not is_suicide and not is_tk and k in S:
+            if not is_suicide and not is_tk and k in S and tk is not None:
                 kills_in_round[k] += 1
                 S[k]["kills"] += 1
                 side_stats[k][side_name(tk)]["kills"] += 1
