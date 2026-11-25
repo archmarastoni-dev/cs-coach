@@ -9,12 +9,13 @@ import time
 from pathlib import Path
 
 FROZEN = getattr(sys, "frozen", False)
-BUNDLE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))      # bundled files (template, parser)
 try:
     SCRIPT = str(Path(__file__).resolve())
 except NameError:
     SCRIPT = str(Path(sys.argv[0]).resolve()) if sys.argv and sys.argv[0] else ""
-APPDIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
+_SRC = Path(SCRIPT).parent if SCRIPT else Path.cwd()
+BUNDLE = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else _SRC                # bundled files (template, parser)
+APPDIR = Path(sys.executable).resolve().parent if FROZEN else _SRC
 
 
 def _writable(d):
@@ -34,6 +35,8 @@ CFG, DB, HTML, LOGF = DATA / "config.json", DATA / "cs_data.json", DATA / "cs_co
 
 _lf = open(LOGF, "a", encoding="utf-8", buffering=1)
 sys.stdout = sys.stderr = _lf                       # windowed app without a console: everything goes to the log file
+print("=== avvio", time.strftime("%Y-%m-%d %H:%M:%S"), "pid", os.getpid(), "frozen", FROZEN, "python", sys.version.split()[0],
+      "\n    script", SCRIPT, "\n    bundle", BUNDLE, "\n    dati", DATA, "\n    html", HTML, "args", sys.argv[1:])
 sys.path.insert(0, str(BUNDLE))
 import cs_coach                                     # noqa: E402
 
@@ -158,7 +161,8 @@ def update(cfg):
         say("Pronto: ci sono partite nuove" if n else "Pronto")
         return n
     except Exception as e:
-        print("ERROR", repr(e))
+        import traceback
+        print("ERROR", repr(e), traceback.format_exc())
         say("Errore: " + str(e)[:120])
         return 0
     finally:
@@ -167,10 +171,16 @@ def update(cfg):
 
 def show_dashboard():
     w = STATE["win"]
-    if not HTML.exists():
+    for _ in range(20):                                 # the file may be replaced a moment ago: wait for it
+        if HTML.exists():
+            break
+        time.sleep(0.25)
+    else:
         say("Dashboard non trovata: guarda il registro attività (menu CS Coach)")
+        print("show_dashboard: file mancante", HTML)
         return
     STATE["splash"] = False
+    print("carico", HTML.as_uri())
     w.load_url(HTML.as_uri() + "?app=1")        # "?app=1": the dashboard then manages its own back/forward history
 
 
@@ -185,6 +195,15 @@ def set_icon():
 
 
 def worker(cfg):
+  try:
+    _worker(cfg)
+  except Exception:
+    import traceback
+    print("ERROR worker", traceback.format_exc())
+    say("Errore interno: guarda cs_coach.log")
+
+
+def _worker(cfg):
     n = update(cfg)
     if HTML.exists():
         show_dashboard()
@@ -196,8 +215,31 @@ def worker(cfg):
             show_dashboard()
 
 
+_LOCK = None
+
+
+def single_instance():
+    """Only one app at a time: two copies would write the same dashboard/archive/log and collide."""
+    global _LOCK
+    import socket
+    try:
+        _LOCK = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _LOCK.bind(("127.0.0.1", 47931))
+        return True
+    except OSError:
+        return False
+
+
 def main():
     import webview
+    if not single_instance():
+        print("un'altra copia di CS Coach è già aperta: esco")
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, "CS Coach è già aperto (guarda la barra delle applicazioni o chiudi le copie dal Gestione attività).", "CS Coach", 0x40)
+        except Exception:
+            pass
+        return
     cfg = load_cfg() or first_run()
     cfg.setdefault("folders", [])
     win = webview.create_window("CS Coach", html=SPLASH, width=1320, height=860, min_size=(900, 600))

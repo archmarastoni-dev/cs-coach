@@ -65,7 +65,19 @@ def load_db(path, steamid):
 def save_db(path, db):
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(db, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    os.replace(tmp, path)
+    safe_replace(tmp, path)
+
+
+def safe_replace(src, dst, tries=40):
+    """os.replace that waits while Windows has the target open (antivirus, browser, another process)."""
+    for i in range(tries):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(0.25)
 
 
 def write_html(db, html_path):
@@ -82,7 +94,7 @@ def write_html(db, html_path):
         return
     tmp = html_path.with_suffix(".tmp")
     tmp.write_text(html, encoding="utf-8")
-    os.replace(tmp, html_path)
+    safe_replace(tmp, html_path)
 
 
 def is_settled(p):
