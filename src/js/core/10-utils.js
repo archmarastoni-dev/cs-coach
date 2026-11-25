@@ -5,9 +5,14 @@ const LITE = !!DATA.lite_view, PROFILE = DATA.profile || null;
 const OV = (() => { let o = {}; try{ o = JSON.parse(localStorage.getItem('csc_ov')||'{}') || {}; }catch(e){} o.dates = o.dates || {}; o.order = o.order || []; return o; })();
 const ovSave = () => { try{ localStorage.setItem('csc_ov', JSON.stringify(OV)); }catch(e){} };
 for(const m of DATA.matches) if(OV.dates[m.id]){ m.played0 = m.played0 || m.played || ''; m.played = OV.dates[m.id]; }
-const cmpAuto = (a,b) => (a.played && b.played) ? a.played.localeCompare(b.played) : (a.patch-b.patch) || String(a.added||'').localeCompare(String(b.added||''));
+const effDate = m => m.played || m.added || '';      // match date, or (when unknown) the day the demo was added
+const cmpAuto = (a,b) => effDate(a).localeCompare(effDate(b)) || (a.patch-b.patch);
 const cmpM = (a,b) => { const ia = OV.order.indexOf(a.id), ib = OV.order.indexOf(b.id);
   if(ia>=0 && ib>=0) return ia-ib; if(ia>=0) return -1; if(ib>=0) return 1; return cmpAuto(a,b); };
+const suspect = m => { const s = m.score, n = s.us + s.them, w = Math.max(s.us, s.them);
+  return m.recheck ? 'I numeri di dettaglio vengono da una lettura vecchia: il risultato è corretto, ma ri-scarica la demo e rimettila nella cartella per rileggerla.'
+    : !m.complete ? 'Partita non completa nella lettura: ri-scarica la demo e rimettila nella cartella.'
+    : (w < 13 || (m.rounds && m.rounds.length !== n)) ? 'I round letti non tornano con il risultato: ri-scarica la demo e rimettila nella cartella.' : ''; };
 const kindOf = m => m.kind || (/faceit/i.test(m.server||'') ? 'FACEIT' : /esea/i.test(m.server||'') ? 'ESEA' : /^valve/i.test(m.server||'') ? 'Valve' : 'Altro');
 const dShort = s => s ? s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4) : '';
 const $ = (s, r=document) => r.querySelector(s);

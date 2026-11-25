@@ -181,6 +181,7 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 .kind.k-FACEIT{border-color:#f60;color:#f60}.kind.k-Premier{border-color:#3b82f6;color:#3b82f6}.kind.k-Competitiva{border-color:#8b5cf6;color:#8b5cf6}
 .hdate{font:inherit;padding:1px 4px}.nowrap{white-space:nowrap}
 .sbox .iss{background:var(--surface)}
+.warnb{color:var(--warn);cursor:help;font-size:14px}
 </style>
 <style>
 /* E-learning, in-app image viewer and match-analysis styles */
@@ -268,9 +269,14 @@ const LITE = !!DATA.lite_view, PROFILE = DATA.profile || null;
 const OV = (() => { let o = {}; try{ o = JSON.parse(localStorage.getItem('csc_ov')||'{}') || {}; }catch(e){} o.dates = o.dates || {}; o.order = o.order || []; return o; })();
 const ovSave = () => { try{ localStorage.setItem('csc_ov', JSON.stringify(OV)); }catch(e){} };
 for(const m of DATA.matches) if(OV.dates[m.id]){ m.played0 = m.played0 || m.played || ''; m.played = OV.dates[m.id]; }
-const cmpAuto = (a,b) => (a.played && b.played) ? a.played.localeCompare(b.played) : (a.patch-b.patch) || String(a.added||'').localeCompare(String(b.added||''));
+const effDate = m => m.played || m.added || '';      // match date, or (when unknown) the day the demo was added
+const cmpAuto = (a,b) => effDate(a).localeCompare(effDate(b)) || (a.patch-b.patch);
 const cmpM = (a,b) => { const ia = OV.order.indexOf(a.id), ib = OV.order.indexOf(b.id);
   if(ia>=0 && ib>=0) return ia-ib; if(ia>=0) return -1; if(ib>=0) return 1; return cmpAuto(a,b); };
+const suspect = m => { const s = m.score, n = s.us + s.them, w = Math.max(s.us, s.them);
+  return m.recheck ? 'I numeri di dettaglio vengono da una lettura vecchia: il risultato è corretto, ma ri-scarica la demo e rimettila nella cartella per rileggerla.'
+    : !m.complete ? 'Partita non completa nella lettura: ri-scarica la demo e rimettila nella cartella.'
+    : (w < 13 || (m.rounds && m.rounds.length !== n)) ? 'I round letti non tornano con il risultato: ri-scarica la demo e rimettila nella cartella.' : ''; };
 const kindOf = m => m.kind || (/faceit/i.test(m.server||'') ? 'FACEIT' : /esea/i.test(m.server||'') ? 'ESEA' : /^valve/i.test(m.server||'') ? 'Valve' : 'Altro');
 const dShort = s => s ? s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4) : '';
 const $ = (s, r=document) => r.querySelector(s);
@@ -631,7 +637,7 @@ function viewPartite(ms){
   if(adv) cols.push(['ok','Apertura'],['tr','Trade'],['cl','Clutch'],['ef','Flash']);
   const head = cols.map(([k,t])=>!k?`<th>${t}</th>`:`<th class="sortable" data-sort="${k}" ${key===k?`aria-sort="${dir>0?'ascending':'descending'}"`:''}>${t}${key===k?(dir>0?' ▲':' ▼'):''}</th>`).join('');
   if(ed) cols.push(['','Ordine']);
-  const body = rows.map(r => `<tr class="click" data-match="${r.m.id}"><td>${r.idx}</td><td>${ed?`<input type="date" class="hdate" data-dateid="${r.m.id}" value="${(r.played||'').slice(0,10)}">`:dShort(r.played)}</td><td><span class="kind k-${r.kind}">${r.kind}</span></td><td>${r.map}</td><td><span class="pill ${r.m.result}">${r.m.score.us}-${r.m.score.them}</span></td><td>${f1(r.rating,2)}</td><td>${r.k}</td><td>${r.a}</td><td>${r.d}</td><td>${f1(r.kd,2)}</td><td>${f1(r.adr,0)}</td><td>${pc(r.hs)}</td><td>${pc(r.kast)}</td>${adv?`<td>${pc(r.ok)}</td><td>${pc(r.tr)}</td><td>${r.cl}</td><td>${r.ef}</td>`:''}${ed?`<td class="nowrap"><button class="btn mv" data-mv="-1|${r.m.id}" title="Scambia con la partita precedente (numero più basso)">▲</button> <button class="btn mv" data-mv="1|${r.m.id}" title="Scambia con la partita successiva (numero più alto)">▼</button></td>`:''}</tr>`).join('');
+  const body = rows.map(r => `<tr class="click" data-match="${r.m.id}"><td>${r.idx}</td><td>${ed?`<input type="date" class="hdate" data-dateid="${r.m.id}" value="${(r.played||'').slice(0,10)}">`:dShort(r.played)}</td><td><span class="kind k-${r.kind}">${r.kind}</span></td><td>${r.map}</td><td><span class="pill ${r.m.result}">${r.m.score.us}-${r.m.score.them}</span>${suspect(r.m)?` <span class="warnb" ${tipAttr(suspect(r.m))} >⚠</span>`:''}</td><td>${f1(r.rating,2)}</td><td>${r.k}</td><td>${r.a}</td><td>${r.d}</td><td>${f1(r.kd,2)}</td><td>${f1(r.adr,0)}</td><td>${pc(r.hs)}</td><td>${pc(r.kast)}</td>${adv?`<td>${pc(r.ok)}</td><td>${pc(r.tr)}</td><td>${r.cl}</td><td>${r.ef}</td>`:''}${ed?`<td class="nowrap"><button class="btn mv" data-mv="-1|${r.m.id}" title="Scambia con la partita precedente (numero più basso)">▲</button> <button class="btn mv" data-mv="1|${r.m.id}" title="Scambia con la partita successiva (numero più alto)">▼</button></td>`:''}</tr>`).join('');
   const kinds = [...new Set(state.matches.map(kindOf))], maps = [...new Set(state.matches.map(m=>m.map))];
   const filt = state.fKind!=='all' || state.fMap!=='all' || state.fRes!=='all' || state.hFrom || state.hTo;
   const bar = `<div class="hbar">

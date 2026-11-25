@@ -174,3 +174,4 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 .kind.k-FACEIT{border-color:#f60;color:#f60}.kind.k-Premier{border-color:#3b82f6;color:#3b82f6}.kind.k-Competitiva{border-color:#8b5cf6;color:#8b5cf6}
 .hdate{font:inherit;padding:1px 4px}.nowrap{white-space:nowrap}
 .sbox .iss{background:var(--surface)}
+.warnb{color:var(--warn);cursor:help;font-size:14px}
