@@ -165,7 +165,7 @@ function viewMatch(m){
     body = mapCard(m.map, [m], state.fSide, 'm');
   }
   return `<button class="btn back" data-back="1">← Tutte le partite</button>
-    <div class="card"><div class="top-row"><div><h2>#${idxOf(m)} ${mapName(m.map)} <span class="pill ${m.result}">${sc.us}-${sc.them}</span></h2>
+    <div class="card mstick"><div class="top-row"><div><h2>#${idxOf(m)} ${mapName(m.map)} <span class="pill ${m.result}">${sc.us}-${sc.them}</span></h2>
       <div class="sub">${m.played?dShort(m.played)+' · ':''}CT: ${sc.ct_won}/${sc.ct_rounds} round vinti · T: ${sc.t_won}/${sc.t_rounds} round vinti · demo ${esc(m.file.slice(0,34))}…</div></div>
       <div class="seg" id="mview">${tabs.map(([k,t])=>`<button data-v="${k}" aria-pressed="${state.selView===k}">${t}</button>`).join('')}</div></div></div>
     ${partial}${body}`;

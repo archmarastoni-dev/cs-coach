@@ -10,7 +10,41 @@ function welcome(){
   <ol start="4" style="padding-left:20px;margin:0"><li>Qui sopra premi <b>Importa dati</b> e scegli <code>cs_data.json</code>.</li></ol>
   <p style="margin-top:14px"><button class="btn" id="btnImp2">Importa dati</button></p></div>`;
 }
+/* Navigation history: every change of view (tab, match, match section, learn page) is a history entry,
+   so the mouse "back" button / Alt+Left returns to the previous view, and the scroll position is restored. */
+const NAV = {key:'', init:false, restoring:false, leaveY:0};
+const APP_MODE = /[?&]app=1/.test(location.search);
+function navSnap(){ return {tab:state.tab, sel:state.sel, selView:state.selView, mapSel:state.mapSel, learn:{on:state.learn.on, path:state.learn.path, map:state.learn.map}}; }
+function navSync(){
+  if(NAV.restoring) return;
+  const snap = navSnap(), key = JSON.stringify(snap);
+  if(key === NAV.key) return;
+  try{
+    if(NAV.key) history.replaceState(Object.assign({}, history.state, {y: NAV.leaveY}), '');   // remember where we were scrolled
+    const url = '#'+state.tab;
+    if(NAV.init) history.pushState(Object.assign({y:0}, snap), '', url);
+    else {
+      NAV.init = true;
+      if(APP_MODE){ history.replaceState({sentinel:true}, ''); history.pushState(Object.assign({y:0}, snap), '', url); }   // sentinel: the start-up splash can not be reached
+      else history.replaceState(Object.assign({y:0}, snap), '', url);
+    }
+  }catch(e){}
+  NAV.key = key;
+}
+window.addEventListener('popstate', e => {
+  const s = e.state;
+  if(!s) return;
+  if(s.sentinel){ history.go(1); return; }
+  NAV.restoring = true;
+  state.tab = s.tab; state.sel = s.sel; state.selView = s.selView; state.mapSel = s.mapSel;
+  Object.assign(state.learn, s.learn);
+  render();
+  NAV.key = JSON.stringify(navSnap());
+  NAV.restoring = false;
+  window.scrollTo(0, s.y || 0);
+});
 function render(){
+  NAV.leaveY = window.scrollY;
   renderChrome();
   const ms = filtered();
   let html = '';
@@ -26,6 +60,8 @@ function render(){
   $('#main').innerHTML = html;
   initZoom();
   initReplay();
+  navSync();
+  const hh = document.querySelector('header.top'); if(hh) document.documentElement.style.setProperty('--hh', hh.offsetHeight+'px');
   if(state.focusDeath){ const el = document.getElementById(state.focusDeath); state.focusDeath = null; if(el) el.scrollIntoView({block:'start'}); }
 }
-function setTab(t){ state.tab = t; state.sel = null; try{ history.replaceState(null,'','#'+t); }catch(e){} render(); window.scrollTo(0,0); }
+function setTab(t){ state.tab = t; state.sel = null; render(); window.scrollTo(0,0); }

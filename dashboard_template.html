@@ -165,6 +165,7 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 .rp.rp-full .rp-stage{flex:1;max-height:none;aspect-ratio:auto;min-height:0}
 .rp.rp-full .rp-bar{color:#fff}
 .rp.rp-full .btn,.rp.rp-full select{background:#16202b;color:#fff;border-color:#2a3644}
+.mstick{position:sticky;top:var(--hh,112px);z-index:15}
 </style>
 <style>
 /* E-learning, in-app image viewer and match-analysis styles */
@@ -876,7 +877,7 @@ function viewMatch(m){
     body = mapCard(m.map, [m], state.fSide, 'm');
   }
   return `<button class="btn back" data-back="1">← Tutte le partite</button>
-    <div class="card"><div class="top-row"><div><h2>#${idxOf(m)} ${mapName(m.map)} <span class="pill ${m.result}">${sc.us}-${sc.them}</span></h2>
+    <div class="card mstick"><div class="top-row"><div><h2>#${idxOf(m)} ${mapName(m.map)} <span class="pill ${m.result}">${sc.us}-${sc.them}</span></h2>
       <div class="sub">${m.played?dShort(m.played)+' · ':''}CT: ${sc.ct_won}/${sc.ct_rounds} round vinti · T: ${sc.t_won}/${sc.t_rounds} round vinti · demo ${esc(m.file.slice(0,34))}…</div></div>
       <div class="seg" id="mview">${tabs.map(([k,t])=>`<button data-v="${k}" aria-pressed="${state.selView===k}">${t}</button>`).join('')}</div></div></div>
     ${partial}${body}`;
@@ -5770,7 +5771,41 @@ function welcome(){
   <ol start="4" style="padding-left:20px;margin:0"><li>Qui sopra premi <b>Importa dati</b> e scegli <code>cs_data.json</code>.</li></ol>
   <p style="margin-top:14px"><button class="btn" id="btnImp2">Importa dati</button></p></div>`;
 }
+/* Navigation history: every change of view (tab, match, match section, learn page) is a history entry,
+   so the mouse "back" button / Alt+Left returns to the previous view, and the scroll position is restored. */
+const NAV = {key:'', init:false, restoring:false, leaveY:0};
+const APP_MODE = /[?&]app=1/.test(location.search);
+function navSnap(){ return {tab:state.tab, sel:state.sel, selView:state.selView, mapSel:state.mapSel, learn:{on:state.learn.on, path:state.learn.path, map:state.learn.map}}; }
+function navSync(){
+  if(NAV.restoring) return;
+  const snap = navSnap(), key = JSON.stringify(snap);
+  if(key === NAV.key) return;
+  try{
+    if(NAV.key) history.replaceState(Object.assign({}, history.state, {y: NAV.leaveY}), '');   // remember where we were scrolled
+    const url = '#'+state.tab;
+    if(NAV.init) history.pushState(Object.assign({y:0}, snap), '', url);
+    else {
+      NAV.init = true;
+      if(APP_MODE){ history.replaceState({sentinel:true}, ''); history.pushState(Object.assign({y:0}, snap), '', url); }   // sentinel: the start-up splash can not be reached
+      else history.replaceState(Object.assign({y:0}, snap), '', url);
+    }
+  }catch(e){}
+  NAV.key = key;
+}
+window.addEventListener('popstate', e => {
+  const s = e.state;
+  if(!s) return;
+  if(s.sentinel){ history.go(1); return; }
+  NAV.restoring = true;
+  state.tab = s.tab; state.sel = s.sel; state.selView = s.selView; state.mapSel = s.mapSel;
+  Object.assign(state.learn, s.learn);
+  render();
+  NAV.key = JSON.stringify(navSnap());
+  NAV.restoring = false;
+  window.scrollTo(0, s.y || 0);
+});
 function render(){
+  NAV.leaveY = window.scrollY;
   renderChrome();
   const ms = filtered();
   let html = '';
@@ -5786,9 +5821,11 @@ function render(){
   $('#main').innerHTML = html;
   initZoom();
   initReplay();
+  navSync();
+  const hh = document.querySelector('header.top'); if(hh) document.documentElement.style.setProperty('--hh', hh.offsetHeight+'px');
   if(state.focusDeath){ const el = document.getElementById(state.focusDeath); state.focusDeath = null; if(el) el.scrollIntoView({block:'start'}); }
 }
-function setTab(t){ state.tab = t; state.sel = null; try{ history.replaceState(null,'','#'+t); }catch(e){} render(); window.scrollTo(0,0); }
+function setTab(t){ state.tab = t; state.sel = null; render(); window.scrollTo(0,0); }
 </script>
 <script>
 /* Events: one delegated click handler, data import and notes */

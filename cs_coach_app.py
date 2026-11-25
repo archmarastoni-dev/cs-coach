@@ -128,23 +128,10 @@ def update(cfg):
         STATE["busy"] = False
 
 
-# Keeps the mouse "back" button (and Alt+Left) from going back to the start-up splash screen.
-TRAP_BACK = "if(!window.__csTrap){window.__csTrap=1;history.pushState(null,'',location.href);" \
-            "window.addEventListener('popstate',function(){history.pushState(null,'',location.href);});}"
-
-
 def show_dashboard():
     w = STATE["win"]
     STATE["splash"] = False
-    w.load_url(HTML.as_uri())          # on_loaded() then blocks "back" so the splash page can not be reached again
-
-
-def on_loaded():
-    if not STATE["splash"]:
-        try:
-            STATE["win"].evaluate_js(TRAP_BACK)
-        except Exception:
-            pass
+    w.load_url(HTML.as_uri() + "?app=1")        # "?app=1": the dashboard then manages its own back/forward history
 
 
 def set_icon():
@@ -175,7 +162,6 @@ def main():
     cfg.setdefault("folders", [])
     win = webview.create_window("CS Coach", html=SPLASH, width=1320, height=860, min_size=(900, 600))
     STATE["win"] = win
-    win.events.loaded += on_loaded
     win.events.shown += set_icon
 
     def refresh_now():

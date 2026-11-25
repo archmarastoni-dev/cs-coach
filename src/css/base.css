@@ -158,3 +158,4 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 .rp.rp-full .rp-stage{flex:1;max-height:none;aspect-ratio:auto;min-height:0}
 .rp.rp-full .rp-bar{color:#fff}
 .rp.rp-full .btn,.rp.rp-full select{background:#16202b;color:#fff;border-color:#2a3644}
+.mstick{position:sticky;top:var(--hh,112px);z-index:15}
