@@ -176,37 +176,32 @@ def process(folders, db, db_path, html_path, delete, failed):
                     m["valve_id"], m["played"] = inf["valve_id"], info_played(inf)
                 except Exception as e:
                     log(f"  .info unreadable ({e}), using the file date.")
-            known = {x.get("fp") for x in db["matches"]} | {x["id"] for x in db["matches"]} | {x.get("valve_id") for x in db["matches"]}
-            if redo:
-                old = next(x for x in db["matches"] if x.get("id") == m["id"])
+            # The same match is recognised ONLY by exact identity: same demo file name, same Valve match id (.info),
+            # or same content signature (map + players + raw round-end ticks). Similar matches (same map, same score) are NOT enough.
+            def same(x):
+                return (x.get("id") == m["id"] or (m.get("valve_id") and x.get("valve_id") == m["valve_id"])
+                        or (m.get("sig") and x.get("sig") == m["sig"]))
+            olds = [x for x in db["matches"] if same(x)]
+            if olds:
                 for k in ("played", "valve_id", "added"):
-                    if old.get(k) and not m.get(k):
-                        m[k] = old[k]
-                db["matches"][db["matches"].index(old)] = m
-                log("  updated with the per-death detail.")
-                new += 1
-            elif m["fp"] in known or m["id"] in known or (m.get("valve_id") and m["valve_id"] in known):
-                # same match already archived (maybe read badly by an older version): the fresh reading replaces it
-                old = next((x for x in db["matches"] if x.get("fp") == m["fp"] or x.get("id") == m["id"]
-                            or (m.get("valve_id") and x.get("valve_id") == m["valve_id"])), None)
-                if old is None:
-                    log("  already in the archive as a scoreboard-only entry, not adding it.")
-                else:
-                    for k in ("played", "valve_id", "added"):
+                    for old in olds:
                         if old.get(k) and not m.get(k):
                             m[k] = old[k]
-                    db["matches"][db["matches"].index(old)] = m
-                    db["matches"].sort(key=lambda x: (x.get("played", ""), x["patch"], x.get("added", "")))
-                    new += 1
-                    log(f"  already in the archive: replaced with the new reading ({m['map']} {m['score']['us']}-{m['score']['them']}).")
+                pos = db["matches"].index(olds[0])
+                db["matches"] = [x for x in db["matches"] if not same(x)]
+                db["matches"].insert(min(pos, len(db["matches"])), m)
+                n_old = len(olds)
+                log(f"  already in the archive (exactly the same demo): replaced the old reading{'s' if n_old>1 else ''} with the new one ({m['map']} {m['score']['us']}-{m['score']['them']}).")
             else:
+                twin = next((x for x in db["matches"] if x.get("fp") == m["fp"]), None)
+                if twin:
+                    log("  note: another archived match has the same map, players and score, but it is not provably the same demo: kept both.")
                 db["matches"].append(m)
-                db["matches"].sort(key=lambda x: (x.get("played", ""), x["patch"], x.get("added", "")))
-                if m.get("valve_id"):
-                    db["lite"] = [l for l in db["lite"] if l.get("valve_id") != m["valve_id"]]
-                new += 1
-                s = m["score"]
-                log(f"  {m['map']} {s['us']}-{s['them']} added to the archive.")
+                log(f"  {m['map']} {m['score']['us']}-{m['score']['them']} added to the archive.")
+            db["matches"].sort(key=lambda x: (x.get("played") or x.get("added", ""), x["patch"]))
+            if m.get("valve_id"):
+                db["lite"] = [l for l in db["lite"] if l.get("valve_id") != m["valve_id"]]
+            new += 1
             if key not in db["processed"]:
                 db["processed"].append(key)
             save_db(db_path, db)

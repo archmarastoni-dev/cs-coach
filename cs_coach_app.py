@@ -104,22 +104,46 @@ def first_run():
     return cfg
 
 
-def update(cfg):
+def do_update(cfg):
     """Look for new demos, parse them and rebuild the dashboard. Returns the number of new matches."""
+    db = cs_coach.load_db(DB, cfg["steamid"])
+    if not db.get("steamid"):
+        db["steamid"] = cfg["steamid"]
+    n = cs_coach.process(cfg["folders"], db, DB, HTML, cfg.get("delete", False), set())
+    cs_coach.write_html(db, HTML)
+    return n
+
+
+def child_update():
+    """Runs in a separate low-priority process (see update): parsing a demo is heavy and must never freeze the window."""
+    cfg = load_cfg()
+    if not cfg:
+        return 1
+    cfg.setdefault("folders", [])
+    try:
+        return 10 if do_update(cfg) else 0
+    except SystemExit as e:
+        print(e)
+        return 0
+    except Exception as e:
+        import traceback
+        print("ERROR", repr(e), traceback.format_exc())
+        return 1
+
+
+def update(cfg):
+    """Parse new demos in a child process (so the window stays responsive). Returns True if there are new matches."""
     if STATE["busy"]:
         return 0
     STATE["busy"] = True
     try:
-        db = cs_coach.load_db(DB, cfg["steamid"])
-        if not db.get("steamid"):
-            db["steamid"] = cfg["steamid"]
-        n = cs_coach.process(cfg["folders"], db, DB, HTML, cfg.get("delete", False), set())
-        cs_coach.write_html(db, HTML)
-        say(f"Pronto: {n} partite nuove" if n else "Pronto")
+        say("Controllo le demo…")
+        cmd = [sys.executable] + ([] if FROZEN else [str(Path(__file__).resolve())]) + ["--update"]
+        flags = (0x00004000 | 0x08000000) if os.name == "nt" else 0      # BELOW_NORMAL_PRIORITY_CLASS | CREATE_NO_WINDOW
+        r = subprocess.run(cmd, creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        n = 1 if r.returncode == 10 else 0
+        say("Pronto: ci sono partite nuove" if n else ("Errore: guarda il registro attività" if r.returncode else "Pronto"))
         return n
-    except SystemExit as e:
-        say(str(e))
-        return 0
     except Exception as e:
         print("ERROR", repr(e))
         say("Errore: " + str(e)[:120])
@@ -187,4 +211,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if "--update" in sys.argv:
+        sys.exit(child_update())
     main()

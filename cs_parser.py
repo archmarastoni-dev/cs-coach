@@ -759,6 +759,8 @@ def parse_demo(path, me_id):
     match_id = hashlib.sha1(f"{os.path.basename(path)}".encode()).hexdigest()[:10]
     # match fingerprint: the same match downloaded under different names gets the same fingerprint
     fp = hashlib.sha1((map_name + "|" + ",".join(sorted(players)) + f"|{me_wins}-{me_loss}|{header.get('patch_version','')}").encode()).hexdigest()[:12]
+    # exact identity of this demo: map, the ten players and the raw tick of every round end do not depend on how the demo was read
+    sig = hashlib.sha1((map_name + "|" + ",".join(sorted(players)) + "|" + ",".join(str(int(t)) for t in sorted(read_event(p, "round_end")["tick"]))).encode()).hexdigest()[:16]
     me_p = next(x for x in plist if x["sid"] == me_id)
     try:
         ptk = {int(r): int(t) for r, t in zip(plants["round"], plants["tick"]) if r == r} if "round" in plants.columns else {}
@@ -781,6 +783,7 @@ def parse_demo(path, me_id):
     return {
         "id": match_id,
         "fp": fp,
+        "sig": sig,
         "file": os.path.basename(path),
         "map": map_name,
         "patch": int(header.get("patch_version", 0) or 0),
