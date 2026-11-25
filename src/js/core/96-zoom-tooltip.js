@@ -55,10 +55,10 @@ function setupMap(svg, key, opts={}){
   set();
 }
 function fsCaption(svg, card){
-  const head = card && card.querySelector('.dhead,.dv-t'), fig = svg.closest('figure');
+  const head = card && card.querySelector('.dhead,.dv-t'), fig = svg.closest('figure'), lvc = svg.closest('.lvcol'), flr = lvc && lvc.querySelector('.lvt') ? ' · ' + lvc.querySelector('.lvt').textContent : '';
   const what = fig ? (fig.querySelector('figcaption') ? 'Fotogramma: ' + fig.querySelector('figcaption').textContent.trim() : 'Fotogramma') : (card && card.querySelector('.dcard') || card && card.querySelector('.dv-main') ? 'Posizioni al momento della morte' : '');
   const inDeath = card && (card.querySelector('.dcard') || card.querySelector('.dv-main'));
-  return '<b>' + (head ? esc(head.innerText.split('\n')[0]) : '') + '</b>' + (what ? ' · ' + esc(what) : '') +
+  return '<b>' + (head ? esc(head.innerText.split('\n')[0]) : '') + '</b>' + (what ? ' · ' + esc(what) : '') + esc(flr) +
     (inDeath ? '<br><span>Pallino = giocatore vivo · ✕ = morto · giallo = tu, blu = compagni, rosso = avversari · bordo bianco = chi ti ha ucciso · coni = dove guardavano · cerchi = smoke/flash/HE/molotov</span>' : '');
 }
 function openFullscreen(src, view){

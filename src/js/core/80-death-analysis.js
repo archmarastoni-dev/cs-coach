@@ -125,21 +125,22 @@ function deathRadar(m, e){
   const k = vb[2]/1000, R = v => +(v*Math.max(k,0.28)).toFixed(1);
   const sh = [];
   const me_ = c.pos.find(p=>p.tm==='me'), ki = c.pos.find(p=>p.k);
+  const lm = lvlOf(map, me_ ? me_.z : e.vz);
   if(c.tr.length>1){
     const pts = c.tr.map(p=>pt(p[0],p[1]).map(v=>v.toFixed(1)).join(',')).join(' ');
-    sh.push(`<polyline points="${pts}" fill="none" stroke="#ffd34d" stroke-width="${R(5)}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity=".85" stroke-dasharray="${R(10)} ${R(7)}"/>`);
+    sh.push(tg(`<polyline points="${pts}" fill="none" stroke="#ffd34d" stroke-width="${R(5)}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity=".85" stroke-dasharray="${R(10)} ${R(7)}"/>`, lm));
   }
-  if(me_ && ki){ const a=pt(me_.x,me_.y), b=pt(ki.x,ki.y); sh.push(`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#ff5c5c" stroke-width="${R(3)}" stroke-dasharray="${R(8)} ${R(6)}" stroke-opacity=".8"/>`); }
+  if(me_ && ki && lvlOf(map, ki.z) === lm){ const a=pt(me_.x,me_.y), b=pt(ki.x,ki.y); sh.push(tg(`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#ff5c5c" stroke-width="${R(3)}" stroke-dasharray="${R(8)} ${R(6)}" stroke-opacity=".8"/>`, lm)); }
   for(const p of c.pos){
     const [u,v] = pt(p.x,p.y);
     const col = p.tm==='me' ? '#ffd34d' : p.tm==='mate' ? '#4aa3ff' : '#ff5c5c';
     const lab = p.tm==='me' ? 'Tu' : esc(p.n);
-    const info = `${p.tm==='me'?'Tu (morto qui)':p.tm==='mate'?'Compagno':'Avversario'} · ${esc(p.n)}${p.pl?' · '+esc(p.pl):''}${p.w?' · '+esc(wname(p.w)):''}`;
+    const info = `${p.z!=null&&LEVELS[map]?(lvlOf(map,p.z)?'[interrato] ':'[piano principale] '):''}${p.tm==='me'?'Tu (morto qui)':p.tm==='mate'?'Compagno':'Avversario'} · ${esc(p.n)}${p.pl?' · '+esc(p.pl):''}${p.w?' · '+esc(wname(p.w)):''}`;
     const itS = [];
     if(p.tm==='me') itS.push(`<path d="M${u-R(11)} ${v-R(11)}L${u+R(11)} ${v+R(11)}M${u+R(11)} ${v-R(11)}L${u-R(11)} ${v+R(11)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round" ${tipAttr(info)}/>`);
     else itS.push(`<circle cx="${u}" cy="${v}" r="${R(p.k?11:9)}" fill="${col}" stroke="${p.k?'#fff':'#000'}" stroke-width="${R(p.k?3.5:2)}" ${tipAttr(info+(p.k?' · ti ha ucciso':''))}/>`);
     if(p.tm==='me' || p.k || (p.tm==='mate' && p.n===c.mn)) itS.push(`<text x="${u+R(14)}" y="${v-R(12)}" fill="#fff" font-size="${R(20)}" stroke="#000" stroke-width="${R(4)}" paint-order="stroke" font-weight="600">${lab}</text>`);
-    sh.push(`<g class="it">${itS.join('')}</g>`);
+    sh.push(tg(`<g class="it">${itS.join('')}</g>`, lvlOf(map, p.z)));
   }
   return radarSVG(map, sh, {vb: vb.map(v=>+v.toFixed(1)).join(' ')});
 }

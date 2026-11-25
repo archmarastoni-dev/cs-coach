@@ -20,7 +20,7 @@ function rpClip(){ const m = rpMatch(); return m && m.replays ? [m, m.replays[RP
 function rpFit(m, c){
   const pt = ptFn(m.map, [[0,0],[1,1]]);
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
-  for(const p of c.ps) for(let i=0;i<p.f.length;i+=4){ if(!p.f[i] && !p.f[i+1]) continue; const [u,v] = pt(p.f[i], p.f[i+1]); x0=Math.min(x0,u); x1=Math.max(x1,u); y0=Math.min(y0,v); y1=Math.max(y1,v); }
+  for(const p of c.ps) for(let i=0;i<p.f.length;i+=(c.st||4)){ if(!p.f[i] && !p.f[i+1]) continue; const [u,v] = pt(p.f[i], p.f[i+1]); x0=Math.min(x0,u); x1=Math.max(x1,u); y0=Math.min(y0,v); y1=Math.max(y1,v); }
   if(x0>x1) return '0 0 1000 1000';
   const sz = Math.min(1000, Math.max(x1-x0, y1-y0, 280) + 200), cx = (x0+x1)/2, cy = (y0+y1)/2;
   const vx = Math.max(0, Math.min(1000-sz, cx-sz/2)), vy = Math.max(0, Math.min(1000-sz, cy-sz/2));
@@ -40,7 +40,7 @@ function rpDraw(root){
   const g = svg.querySelector('.rpl'), pt = ptFn(m.map, [[0,0],[1,1]]);
   const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number), k = Math.max(vb[2]/1000, 0.3), R = v => +(v*k).toFixed(1);
   const u2r = (MAPS[m.map] ? MAPS[m.map].scale : 5) * 1.024;
-  const t = Math.min(RP.t, c.dur), fi = t*c.hz, i0 = Math.min(Math.floor(fi), c.ps[0].f.length/4-1), i1 = Math.min(i0+1, c.ps[0].f.length/4-1), fr = fi-i0;
+  const ST = c.st||4, t = Math.min(RP.t, c.dur), fi = t*c.hz, i0 = Math.min(Math.floor(fi), c.ps[0].f.length/ST-1), i1 = Math.min(i0+1, c.ps[0].f.length/ST-1), fr = fi-i0;
   const parts = [];
   // utility effects
   for(const u of c.u){
@@ -53,11 +53,19 @@ function rpDraw(root){
   }
   // who is alive: dead after their death event
   const pos = c.ps.map((p,i) => {
-    const a = p.f.slice(i0*4, i0*4+4), b = p.f.slice(i1*4, i1*4+4);
+    const a = p.f.slice(i0*ST, i0*ST+ST), b = p.f.slice(i1*ST, i1*ST+ST);
     const dead = c.k.some(e => e.v===i && e.t <= t);
     const hp = dead ? 0 : (a[3] > 0 ? a[3] : 1);
-    return {x: a[0]+(b[0]-a[0])*fr, y: a[1]+(b[1]-a[1])*fr, yaw: rpAng(a[2], b[2], fr), alive: !dead && a[3] > 0, dead, hp, n: p.n, tm: p.tm};
+    return {x: a[0]+(b[0]-a[0])*fr, y: a[1]+(b[1]-a[1])*fr, yaw: rpAng(a[2], b[2], fr), alive: !dead && a[3] > 0, dead, hp, n: p.n, tm: p.tm, z: ST>4 ? a[4] : null};
   });
+  // maps with two floors: show the floor of the followed player (or yours); players on the other floor are faded
+  let showL = -1;
+  if(LEVELS[m.map] && ST>4){
+    showL = lvlOf(m.map, pos[RP.sel>=0 ? RP.sel : 0].z); if(showL < 0) showL = 0;
+    if(svg.dataset.lv !== String(showL)){ const im = svg.querySelector('image'); if(im){ im.setAttribute('href', RADARS[showL===1 && RADARS[m.map+'_lower'] ? m.map+'_lower' : m.map]); } svg.dataset.lv = String(showL); }
+    let lab = svg.parentNode.querySelector('.rp-floor'); if(!lab){ lab = document.createElement('div'); lab.className = 'rp-floor'; svg.parentNode.appendChild(lab); }
+    lab.textContent = LEVELS[m.map].names[showL] + ' · gli altri piani sono sfumati';
+  }
   // kill lines
   for(const e of c.k){
     const age = t-e.t; if(age < 0 || age > 1.4 || e.a < 0) continue;
@@ -66,7 +74,7 @@ function rpDraw(root){
   }
   const dim = RP.sel >= 0;
   pos.forEach((p,i) => {
-    const [x,y] = pt(p.x,p.y), col = RP_COL[p.tm], isSel = i===RP.sel, op = dim && !isSel ? .25 : 1;
+    const [x,y] = pt(p.x,p.y), col = RP_COL[p.tm], isSel = i===RP.sel, op = (dim && !isSel ? .25 : 1) * (showL >= 0 && lvlOf(m.map, p.z) >= 0 && lvlOf(m.map, p.z) !== showL ? .3 : 1);
     if(p.dead || !p.alive){
       parts.push(`<g opacity="${op}" data-p="${i}"><path d="M${x-R(8)} ${y-R(8)}L${x+R(8)} ${y+R(8)}M${x+R(8)} ${y-R(8)}L${x-R(8)} ${y+R(8)}" stroke="${col}" stroke-width="${R(4)}" stroke-linecap="round" stroke-opacity=".7"/><circle cx="${x}" cy="${y}" r="${R(18)}" fill="transparent"/></g>`);
       return;

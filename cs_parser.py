@@ -134,7 +134,7 @@ def build_replays(p, me_id, kills, deaths, clutches, team_of, names, freeze_end,
         grid = list(range(int(t_a), int(t_b) + 1, step))
         plan.append((r, why, t_a, t_b, grid))
         all_ticks.update(grid)
-    df = p.parse_ticks(["X", "Y", "yaw", "health", "team_num"], ticks=sorted(all_ticks))
+    df = p.parse_ticks(["X", "Y", "Z", "yaw", "health", "team_num"], ticks=sorted(all_ticks))
     df["steamid"] = df["steamid"].apply(sid)
     out = []
     for r, why, t_a, t_b, grid in plan:
@@ -152,8 +152,9 @@ def build_replays(p, me_id, kills, deaths, clutches, team_of, names, freeze_end,
                 row = g.loc[s_] if g is not None and s_ in g.index else None
                 if row is not None and row["X"] == row["X"]:
                     last[s_] = [int(row["X"]), int(row["Y"]), int(row["yaw"]) if row["yaw"] == row["yaw"] else 0,
-                                int(row["health"]) if row["health"] == row["health"] else 0]
-                frames[s_].append(last.get(s_, [0, 0, 0, 0]))
+                                int(row["health"]) if row["health"] == row["health"] else 0,
+                                int(row["Z"]) if row["Z"] == row["Z"] else 0]
+                frames[s_].append(last.get(s_, [0, 0, 0, 0, 0]))
         ks = []
         for d in by_round_deaths.get(r, []):
             if t_a <= int(d.tick) <= t_b:
@@ -165,14 +166,14 @@ def build_replays(p, me_id, kills, deaths, clutches, team_of, names, freeze_end,
         for u in util_rows:
             life = UTIL_LIFE.get(u["kind"], 1)
             if u["r"] == r and t_a - life * TICKRATE <= u["tick"] <= t_b:
-                us.append({"t": rnd((u["tick"] - t_a) / TICKRATE, 2), "k": u["kind"], "x": int(u["lx"]), "y": int(u["ly"]), "p": idx.get(u["sid"], -1)})
+                us.append({"t": rnd((u["tick"] - t_a) / TICKRATE, 2), "k": u["kind"], "x": int(u["lx"]), "y": int(u["ly"]), "z": int(u.get("lz", 0)), "p": idx.get(u["sid"], -1)})
         bomb = []
         for name_, dfb in (("plant", plants), ("defuse", defuses)):
             for row in dfb.itertuples(index=False):
                 if t_a <= int(row.tick) <= t_b:
                     bomb.append({"t": rnd((int(row.tick) - t_a) / TICKRATE, 2), "k": name_})
         out.append({
-            "r": r, "why": why, "side": side_name(my_team), "hz": REPLAY_HZ, "t0": rnd((t_a - freeze_end[r]) / TICKRATE, 1),
+            "r": r, "why": why, "side": side_name(my_team), "hz": REPLAY_HZ, "st": 5, "t0": rnd((t_a - freeze_end[r]) / TICKRATE, 1),
             "dur": rnd((t_b - t_a) / TICKRATE, 1),
             "ps": [{"n": names.get(s_, str(s_)), "tm": 0 if s_ == me_id else (1 if teams[s_] == my_team else 2), "f": [v for fr in frames[s_] for v in fr]} for s_ in ids],
             "k": ks, "u": us, "b": bomb,
@@ -516,6 +517,8 @@ def parse_demo(path, me_id):
                     "r": r, "t": rnd(tsec), "tick": int(d.tick), "ksid": k, "vsid": v, "w": wn(nz(d.weapon, "")), "hs": bool(d.headshot),
                     "dist": rnd(nz(d.distance), 1), "ax": rnd(nz(d.attacker_X), 0), "ay": rnd(nz(d.attacker_Y), 0),
                     "vx": rnd(nz(d.user_X), 0), "vy": rnd(nz(d.user_Y), 0),
+                    "az": rnd(nz(d.attacker_Z), 0) if hasattr(d, "attacker_Z") and d.attacker_Z == d.attacker_Z else None,
+                    "vz": rnd(nz(d.user_Z), 0) if hasattr(d, "user_Z") and d.user_Z == d.user_Z else None,
                     "wb": bool(nz(d.penetrated, 0)), "sm": bool(nz(d.thrusmoke, False)),
                     "blind": bool(nz(d.attackerblind, False)), "air": bool(nz(d.attackerinair, False)),
                     "ns": bool(nz(d.noscope, False)),
@@ -657,7 +660,7 @@ def parse_demo(path, me_id):
         pdf["steamid"] = pdf["steamid"].apply(sid)
         pdf = pdf[pdf["steamid"] == me_id]
         for row in pdf.itertuples(index=False):
-            pos[int(row.tick)] = (rnd(row.X, 0), rnd(row.Y, 0), rnd(row.pitch, 1), rnd(row.yaw, 1))
+            pos[int(row.tick)] = (rnd(row.X, 0), rnd(row.Y, 0), rnd(row.pitch, 1), rnd(row.yaw, 1), rnd(row.Z, 0))
     # outcome of my throws: flashes (enemies/teammates blinded, follow-up kills) and smokes (nearby enemies)
     try:
         _utility_outcomes(p, me_id, me_util, blinds, deaths, team_of, round_of)
@@ -667,11 +670,11 @@ def parse_demo(path, me_id):
     for u in me_util:
         o = {k: v for k, v in u.items() if k not in ("sid", "fire_tick", "tick")}
         if u["fire_tick"] and u["fire_tick"] in pos:
-            o["ox"], o["oy"], o["pitch"], o["yaw"] = pos[u["fire_tick"]]
+            o["ox"], o["oy"], o["pitch"], o["yaw"], o["oz"] = pos[u["fire_tick"]]
             o["fly"] = rnd((u["tick"] - u["fire_tick"]) / TICKRATE, 1)
         me_util_out.append(o)
     # every smoke landing (reference: where other players put them)
-    smoke_ref = [{"side": u["side"], "lx": u["lx"], "ly": u["ly"], "t": u["t"], "me": u["sid"] == me_id}
+    smoke_ref = [{"side": u["side"], "lx": u["lx"], "ly": u["ly"], "lz": u["lz"], "t": u["t"], "me": u["sid"] == me_id}
                  for u in util_rows if u["kind"] == "smoke"]
 
     # ---------------------------------------------------------------- weapons (shots / hits / kills)
@@ -926,7 +929,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
         for k in range(8, -1, -1):
             r = alive_at(max(1, base - k * STEP)).get(me_id)
             if r is not None:
-                trail.append([int(float(r.X)), int(float(r.Y))])
+                trail.append([int(float(r.X)), int(float(r.Y)), int(float(r.Z))])
                 trail3.append((float(r.X), float(r.Y), float(r.Z)))
         speed = 0.0
         prev = alive_at(max(1, base - STEP)).get(me_id)
@@ -941,7 +944,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
         pos = []
         for s, r in snap.items():
             tm = "me" if s == me_id else ("mate" if int(nz(r.team_num)) == myteam else "foe")
-            pos.append({"n": str(names.get(s, s))[:14], "x": int(float(r.X)), "y": int(float(r.Y)), "tm": tm,
+            pos.append({"n": str(names.get(s, s))[:14], "x": int(float(r.X)), "y": int(float(r.Y)), "z": int(float(r.Z)), "tm": tm,
                         "k": s == e.get("ksid"), "pl": str(nz(r.last_place_name, "")), "w": wn(str(nz(r.active_weapon_name, "")).lower().replace("-", "").replace(" ", "")),
                         **_look(r)})
         kr = snap.get(e.get("ksid")) if e.get("ksid") else None
@@ -961,7 +964,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
                     continue
                 fr.append({"dt": -kk * 0.5, "p": [[int(float(r.X)), int(float(r.Y)),
                            0 if s == me_id else (1 if int(nz(r.team_num)) == myteam else 2),
-                           int(nz(_look(r).get("yw"), -1)) if _look(r) else -1, 1 if s == e.get("ksid") else 0] for s, r in sn.items()]})
+                           int(nz(_look(r).get("yw"), -1)) if _look(r) else -1, 1 if s == e.get("ksid") else 0, int(float(r.Z))] for s, r in sn.items()]})
             ug = []
             mt = team_of.get(e["r"], {}).get(me_id)
             for u in (util_rows or []):
@@ -969,7 +972,7 @@ def death_context(p, me_id, evs, team_of, names, plant_tick, by_round_deaths=Non
                     continue
                 dtu = u["t"] - e["t"]
                 if -20 <= dtu <= 1:
-                    ug.append({"k": u["kind"], "x": int(u["lx"]), "y": int(u["ly"]), "dt": round(dtu, 1),
+                    ug.append({"k": u["kind"], "x": int(u["lx"]), "y": int(u["ly"]), "z": int(u.get("lz", 0)), "dt": round(dtu, 1),
                                "tm": 1 if team_of.get(e["r"], {}).get(u["sid"]) == mt else 2, "me": 1 if u["sid"] == me_id else 0})
             if fr:
                 e["c"]["fr"] = fr

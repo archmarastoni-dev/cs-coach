@@ -179,13 +179,13 @@ function mapCard(map, ms, side, id){
   const grid = [];
   for(let i=0;i<=10;i++){ grid.push(`<line x1="${i*100}" y1="0" x2="${i*100}" y2="1000" stroke="#fff" stroke-opacity=".18" stroke-width="1"/><line x1="0" y1="${i*100}" x2="1000" y2="${i*100}" stroke="#fff" stroke-opacity=".18" stroke-width="1"/>`); }
   for(let i=0;i<10;i++){ grid.push(`<text x="${i*100+50}" y="22" fill="#ffd54a" font-size="22" text-anchor="middle" font-weight="700" stroke="#000" stroke-width="3" paint-order="stroke">${i+1}</text><text x="12" y="${i*100+58}" fill="#ffd54a" font-size="22" font-weight="700" stroke="#000" stroke-width="3" paint-order="stroke">${i+1}</text>`); }
-  for(const c of cells) grid.push(`<rect class="zc" data-zr="${c.cx}-${c.cy}" x="${c.cx*100}" y="${c.cy*100}" width="100" height="100" fill="#ffd54a" fill-opacity="0" stroke="#ffd54a" stroke-opacity="0" stroke-width="4" pointer-events="none"/>`);
-  const svg = radarSVG(map, [...sc.sh, ...grid]);
+  for(const c of cells) grid.push(tg(`<rect class="zc" data-zr="${c.cx}-${c.cy}-${c.l}" x="${c.cx*100}" y="${c.cy*100}" width="100" height="100" fill="#ffd54a" fill-opacity="0" stroke="#ffd54a" stroke-opacity="0" stroke-width="4" pointer-events="none"/>`, c.l));
+  const svg = radarSVG(map, [...sc.sh, ...grid], {both:true});
   const kc = sc.kills.length, dc = sc.deaths.length;
   const zones = cells.map(c => {
     const kd = c.d ? c.k/c.d : c.k;
     const nm = Object.entries(c.names).sort((a,b)=>b[1]-a[1])[0];
-    return `<tr class="click" data-zc="${c.cx}-${c.cy}"><td><b>Quadrato ${c.cx+1}-${c.cy+1}</b>${nm?`<div class="sub" style="margin:0">dove sei morto: ${esc(nm[0])}</div>`:''}</td><td>${c.k}</td><td>${c.d}</td><td class="${kd>=1?'up':'down'}">${f1(kd,2)}</td></tr>`; }).join('');
+    return `<tr class="click" data-zc="${c.cx}-${c.cy}-${c.l}"><td><b>Quadrato ${c.cx+1}-${c.cy+1}</b>${c.l>=0&&LEVELS[map]?` <span class="sub" style="display:inline">· ${LEVELS[map].names[c.l]}</span>`:''}${nm?`<div class="sub" style="margin:0">dove sei morto: ${esc(nm[0])}</div>`:''}</td><td>${c.k}</td><td>${c.d}</td><td class="${kd>=1?'up':'down'}">${f1(kd,2)}</td></tr>`; }).join('');
   return `<div class="card"><div class="top-row"><div><h2>${mapName(map)}</h2><div class="sub">${ms.length} ${ms.length===1?'partita':'partite'} · ${kc} kill e ${dc} morti${side==='all'?'':' (lato '+side+')'}</div></div>
     <div class="legend" data-layers="${id}">
       <label><input type="checkbox" data-layer="kills" ${L.kills?'checked':''}><span class="dot" style="background:#2bd47d"></span> Tue kill (dove eri)</label>
@@ -205,6 +205,7 @@ function viewMappe(ms){
   const a = agg(mm, state.fSide);
   return `<div class="chips" id="mapChips">${maps.map(mp=>`<button data-map="${mp}" aria-pressed="${state.mapSel===mp}">${mapName(mp)}</button>`).join('')}</div>
     <div class="grid kpis">${kpi('Partite',`${a.mw}-${a.n-a.mw}`,'vinte-perse')}${kpi('Rating',f1(a.rating,2),'')}${kpi('K/D',f1(a.kd,2),'')}${kpi('ADR',f1(a.adr,0),'')}${kpi('Round vinti',pc(a.rwP),'')}${kpi('Duelli apertura',pc(a.okP),'')}</div>
+    ${(()=>{ if(!LEVELS[state.mapSel]) return ''; const nz = mm.filter(m=>!m.me.kills.concat(m.me.deaths).some(e=>e.az!=null||e.vz!=null)).length; return nz ? `<div class="note">${nz===1?'1 partita non ha':nz+' partite non hanno'} l'altezza dei giocatori (servono i due piani): ${nz===1?'è stata letta':'sono state lette'} prima di questa funzione. Finché non rileggi ${nz===1?'la sua demo':'le loro demo'} (rimettile nella cartella delle demo e premi ⟳ Cerca demo) ${nz===1?'compare':'compaiono'} solo sul piano principale.</div>` : ''; })()}
     ${mapCard(state.mapSel, mm, state.fSide, 'map')}`;
 }
 
@@ -233,12 +234,12 @@ function viewUtility(ms){
   const pts = [...utils.map(u=>[u.lx,u.ly]), ...utils.filter(u=>u.ox!==undefined).map(u=>[u.ox,u.oy]), ...refs.map(r=>[r.lx,r.ly])];
   const pt = ptFn(map, pts.length?pts:[[0,0],[1,1]]);
   const sh = [];
-  for(const r of refs){ const [u,v]=pt(r.lx,r.ly); sh.push(`<g class="it"><circle cx="${u}" cy="${v}" r="9" fill="#9aa7b8" fill-opacity=".35" stroke="#fff" stroke-opacity=".5" ${tipAttr('Smoke di un altro giocatore · '+r.side+' · '+r.t+' s')}/></g>`); }
+  for(const r of refs){ const [u,v]=pt(r.lx,r.ly); sh.push(tg(`<g class="it"><circle cx="${u}" cy="${v}" r="9" fill="#9aa7b8" fill-opacity=".35" stroke="#fff" stroke-opacity=".5" ${tipAttr('Smoke di un altro giocatore · '+r.side+' · '+r.t+' s')}/></g>`, lvlOf(map,r.lz))); }
   for(const u of utils){
     if(!state.uKinds[u.kind]) continue;
     const [lx,ly]=pt(u.lx,u.ly); const c = KCOL[u.kind]; const rad = u.kind==='smoke'?15:9;
     let line=''; if(u.ox!==undefined){ const [ox,oy]=pt(u.ox,u.oy); line = `<line x1="${ox}" y1="${oy}" x2="${lx}" y2="${ly}" stroke="${c}" stroke-opacity=".7" stroke-width="2" stroke-dasharray="7 5"/><circle cx="${ox}" cy="${oy}" r="5" fill="#fff" stroke="#000"/>`; }
-    sh.push(`<g class="it">${line}<circle cx="${lx}" cy="${ly}" r="${rad}" fill="${c}" fill-opacity=".55" stroke="#fff" stroke-width="2" ${tipAttr(KIND[u.kind]+' · round '+u.r+' · '+u.side+' · a '+u.t+' s'+(u.pitch!==undefined?' · mira '+u.pitch+'° / '+u.yaw+'°':''))}/></g>`);
+    sh.push(tg(`<g class="it">${line}<circle cx="${lx}" cy="${ly}" r="${rad}" fill="${c}" fill-opacity=".55" stroke="#fff" stroke-width="2" ${tipAttr(KIND[u.kind]+' · round '+u.r+' · '+u.side+' · a '+u.t+' s'+(u.pitch!==undefined?' · mira '+u.pitch+'° / '+u.yaw+'°':''))}/></g>`, lvlOf(map,u.lz)));
   }
   const U = utilAgg(mm, side);
   const fl = U.flashAll||0;
@@ -258,7 +259,7 @@ function viewUtility(ms){
   </div>
   <div class="card"><div class="top-row"><div><h2>Granate su ${mapName(map)}</h2><div class="sub">Pallino bianco = dove eri quando l'hai lanciata, cerchio colorato = dove è arrivata. I valori flash e danni sono su tutti i round.</div></div>
     <div class="legend" id="ukinds">${Object.keys(KIND).map(k=>`<label><input type="checkbox" data-kind="${k}" ${state.uKinds[k]?'checked':''}><span class="dot" style="background:${KCOL[k]}"></span> ${KIND[k]}</label>`).join('')}<label><input type="checkbox" id="uref" ${state.uRef?'checked':''}> Smoke degli altri giocatori</label></div></div>
-    <div class="maprow"><div>${radarSVG(map, sh)}</div>
+    <div class="maprow"><div>${radarSVG(map, sh, {both:true})}</div>
     <div><h3>Le tue smoke ripetute</h3><div class="sub">Lanci con arrivo vicino (entro ~180 unità) raggruppati. Dispersione = distanza media in unità di gioco tra i punti da cui lanci: sotto 60 vuol dire che usi sempre la stessa lineup.</div>
       ${glist?`<table><thead><tr><th>Lato</th><th>Lanci</th><th>Tempo medio</th><th>Dispersione</th><th></th></tr></thead><tbody>${glist}</tbody></table>`:'<div class="empty">Nessuna smoke lanciata con questi filtri.</div>'}
       <p class="sub" style="margin-top:10px">Confronta con le smoke degli altri giocatori (opzione sopra): se le tue finiscono in punti isolati, probabilmente non sono lineup standard.</p></div></div></div>`;

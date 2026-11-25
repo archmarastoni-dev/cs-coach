@@ -10,15 +10,18 @@ function framesStrip(m, e){
   const sz = Math.max(x1-x0, y1-y0, 300) + 160, cx=(x0+x1)/2, cy=(y0+y1)/2;
   const vb = [Math.max(0,Math.min(1000-sz,cx-sz/2)), Math.max(0,Math.min(1000-sz,cy-sz/2)), Math.min(sz,1000), Math.min(sz,1000)];
   const k = vb[2]/1000, R = v => +(v*Math.max(k,0.28)).toFixed(1);
+  const meP = c.pos && c.pos.find(p=>p.tm==='me'), lm = lvlOf(map, meP ? meP.z : e.vz);
   const figs = c.fr.map(f=>{
     const sh = [];
     for(const u of ug){
       const a = f.dt - u.dt; if(a<0 || a>(UT_DUR[u.k]||1)) continue;
+      if(lm>=0 && u.z!=null && lvlOf(map,u.z)!==lm) continue;
       const [ux,uy] = pt(u.x,u.y), col = UT_COL[u.k];
       const rad = u.k==='smoke' ? 140/ ( (MAPS[map]?MAPS[map].scale:5)*1.024) : u.k==='molotov' ? 120/((MAPS[map]?MAPS[map].scale:5)*1.024) : 60/((MAPS[map]?MAPS[map].scale:5)*1.024);
       sh.push(`<circle cx="${ux.toFixed(1)}" cy="${uy.toFixed(1)}" r="${Math.max(rad,R(10)).toFixed(1)}" fill="${col}" fill-opacity="${u.k==='smoke'?.55:.4}" stroke="${col}" stroke-width="${R(2)}" ${tipAttr(({smoke:'Smoke',flash:'Flash',he:'HE',molotov:'Molotov'})[u.k]+(u.me?' (tua)':u.tm===1?' (compagno)':' (avversario)'))}/>`);
     }
     for(const p of f.p){
+      if(lm>=0 && p[5]!=null && lvlOf(map,p[5])!==lm) continue;
       const [u,v] = pt(p[0],p[1]);
       const col = p[2]===0 ? '#ffd34d' : p[2]===1 ? '#4aa3ff' : '#ff5c5c';
       if(p[3]>=0){
@@ -30,7 +33,7 @@ function framesStrip(m, e){
       if(p[2]===0 && f.dt===0) sh.push(`<path d="M${u-R(10)} ${v-R(10)}L${u+R(10)} ${v+R(10)}M${u+R(10)} ${v-R(10)}L${u-R(10)} ${v+R(10)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round"/>`);
       else sh.push(`<circle cx="${u.toFixed(1)}" cy="${v.toFixed(1)}" r="${R(p[4]?10:8)}" fill="${col}" stroke="${p[4]?'#fff':'#000'}" stroke-width="${R(p[4]?3.5:2)}"/>`);
     }
-    return `<figure style="margin:0"><div style="border-radius:8px;overflow:hidden">${radarSVG(map, sh, {vb: vb.map(v=>+v.toFixed(1)).join(' ')})}</div><figcaption class="sub" style="text-align:center;margin-top:4px">${f.dt===0?'Alla morte':'−'+Math.abs(f.dt)+' s'}</figcaption></figure>`;
+    return `<figure style="margin:0"><div style="border-radius:8px;overflow:hidden">${radarSVG(map, lm>=0 ? sh.map(x=>tg(x,lm)) : sh, {vb: vb.map(v=>+v.toFixed(1)).join(' ')})}</div><figcaption class="sub" style="text-align:center;margin-top:4px">${f.dt===0?'Alla morte':'−'+Math.abs(f.dt)+' s'}${lm>=0?' · '+LEVELS[map].names[lm]:''}</figcaption></figure>`;
   }).join('');
   return `<div style="margin-top:14px"><h3 style="margin:0 0 4px">Come si è sviluppata la situazione (da −3 s alla morte)</h3>
     <div class="sub">Quattro fotogrammi dalla mappa 2D. Pallino = giocatore vivo, ✕ = morto (nell'ultimo fotogramma sei tu). Giallo = tu, blu = compagni, rosso = avversari (bordo bianco = chi ti ha ucciso). I coni mostrano dove guardava ognuno. Cerchi: smoke (grigio), flash (giallo), HE (arancio), molotov (rosso).</div>

@@ -44,7 +44,7 @@ function insights(ms, side){
     const sc = mapScene(map, mm, side, {kills:false,deaths:false,heat:false});
     const cells = zoneCells(sc.pts).filter(c => c.d >= 3 && c.d > c.k * 1.5);
     for(const c of cells.slice(0,2))
-      add('media', `Zona pericolosa su ${mapName(map)}`, `${c.d} morti e ${c.k} kill nella stessa area (riquadro ${c.cx+1}-${c.cy+1} della mappa).`, 'Cambia posizione o tempi quando passi di qui: guarda la tab Mappe per capire da dove ti uccidono.');
+      add('media', `Zona pericolosa su ${mapName(map)}`, `${c.d} morti e ${c.k} kill nella stessa area (riquadro ${c.cx+1}-${c.cy+1} della mappa${c.l>=0&&LEVELS[map]?', '+LEVELS[map].names[c.l].toLowerCase():''}).`, 'Cambia posizione o tempi quando passi di qui: guarda la tab Mappe per capire da dove ti uccidono.');
   }
   if(A.adr >= REF.adr*1.08) add('ok', 'Danni a round sopra la media', `${f1(A.adr)} ADR (riferimento ${REF.adr}).`, 'Ottimo impatto: concentrati su sopravvivenza e trade per convertirlo in vittorie.');
   if(A.kastP < .6) add('alta', 'Poca costanza (KAST basso)', `Contribuisci o sopravvivi solo nel ${pc(A.kastP)} dei round (riferimento ${pc(REF.kastP)}).`, 'Punta a ottenere almeno un kill, un assist, la sopravvivenza o una trade in più round: gioca meno rischioso nei round già decisi.');
