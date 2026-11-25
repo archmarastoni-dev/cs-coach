@@ -12,7 +12,7 @@ function welcome(){
 }
 /* Navigation history: every change of view (tab, match, match section, learn page) is a history entry,
    so the mouse "back" button / Alt+Left returns to the previous view, and the scroll position is restored. */
-const NAV = {key:'', init:false, restoring:false, leaveY:0};
+const NAV = {key:'', init:false, restoring:false, leaveY:0, depth:0, max:0, lastGo:0};
 const APP_MODE = /[?&]app=1/.test(location.search);
 function navSnap(){ return {tab:state.tab, sel:state.sel, selView:state.selView, mapSel:state.mapSel, learn:{on:state.learn.on, path:state.learn.path, map:state.learn.map}}; }
 function navSync(){
@@ -22,15 +22,28 @@ function navSync(){
   try{
     if(NAV.key) history.replaceState(Object.assign({}, history.state, {y: NAV.leaveY}), '');   // remember where we were scrolled
     const url = '#'+state.tab;
-    if(NAV.init) history.pushState(Object.assign({y:0}, snap), '', url);
+    if(NAV.init){ NAV.depth++; NAV.max = NAV.depth; history.pushState(Object.assign({y:0, i:NAV.depth}, snap), '', url); }
     else {
       NAV.init = true;
-      if(APP_MODE){ history.replaceState({sentinel:true}, ''); history.pushState(Object.assign({y:0}, snap), '', url); }   // sentinel: the start-up splash can not be reached
-      else history.replaceState(Object.assign({y:0}, snap), '', url);
+      if(APP_MODE){ history.replaceState({sentinel:true}, ''); history.pushState(Object.assign({y:0, i:0}, snap), '', url); }   // sentinel: the start-up splash can not be reached
+      else history.replaceState(Object.assign({y:0, i:0}, snap), '', url);
     }
   }catch(e){}
   NAV.key = key;
+  navButtons();
 }
+function navButtons(){
+  const b = document.getElementById('navBack'), f = document.getElementById('navFwd');
+  if(b) b.disabled = NAV.depth <= 0; if(f) f.disabled = NAV.depth >= NAV.max;
+}
+function navGo(d){      // one step back (-1) or forward (+1); ignores a second call within 300 ms (the browser may also handle the mouse button)
+  const t = Date.now(); if(t - NAV.lastGo < 300) return; NAV.lastGo = t;
+  if(d < 0 ? NAV.depth > 0 : NAV.depth < NAV.max) history.go(d);
+}
+document.addEventListener('click', e => { if(e.target.closest('#navBack')) navGo(-1); else if(e.target.closest('#navFwd')) navGo(1); });
+function mouseNav(e){ if(e.button === 3){ e.preventDefault(); navGo(-1); } else if(e.button === 4){ e.preventDefault(); navGo(1); } }
+document.addEventListener('mouseup', mouseNav); document.addEventListener('auxclick', mouseNav);
+document.addEventListener('keydown', e => { if(e.altKey && e.key === 'ArrowLeft'){ e.preventDefault(); navGo(-1); } else if(e.altKey && e.key === 'ArrowRight'){ e.preventDefault(); navGo(1); } });
 window.addEventListener('popstate', e => {
   const s = e.state;
   if(!s) return;
@@ -38,9 +51,11 @@ window.addEventListener('popstate', e => {
   NAV.restoring = true;
   state.tab = s.tab; state.sel = s.sel; state.selView = s.selView; state.mapSel = s.mapSel;
   Object.assign(state.learn, s.learn);
+  NAV.depth = s.i || 0;
   render();
   NAV.key = JSON.stringify(navSnap());
   NAV.restoring = false;
+  navButtons();
   window.scrollTo(0, s.y || 0);
 });
 function render(){

@@ -31,7 +31,7 @@ button,select,input{font:inherit;color:inherit}
 header.top .wrap{padding-bottom:0}
 header.top{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 0}
 .top-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
-.brand{display:flex;align-items:baseline;gap:10px}
+.brand{display:flex;align-items:center;gap:10px}
 .brand h1{font-size:26px;text-transform:uppercase}
 .brand span{color:var(--ink-3);font-size:13px}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -159,3 +159,6 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 .rp.rp-full .rp-bar{color:#fff}
 .rp.rp-full .btn,.rp.rp-full select{background:#16202b;color:#fff;border-color:#2a3644}
 .mstick{position:sticky;top:var(--hh,112px);z-index:15}
+.navbtn{padding:2px 10px;font-size:16px;margin-right:6px}
+.navbtn:disabled{opacity:.35;cursor:default}
+
