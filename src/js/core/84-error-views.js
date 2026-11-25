@@ -1,6 +1,11 @@
 /* ---- how to throw flashes and smokes (Mistakes tab) ---- */
 function medianOf(a){ if(!a.length) return NaN; const s=a.slice().sort((x,y)=>x-y), h=s.length>>1; return s.length%2?s[h]:(s[h-1]+s[h])/2; }
 function modeOf(a){ const c={}; let b=null; for(const x of a){ if(!x) continue; c[x]=(c[x]||0)+1; if(b===null||c[x]>c[b]) b=x; } return b; }
+/* Collapsible blocks: native <details>, no re-render needed. foldCard() turns an existing card (<h2> + body) into one. */
+function foldCard(html, open=false){
+  const m = html.match(/^\s*<div class="card"><h2>([\s\S]*?)<\/h2>([\s\S]*)<\/div>\s*$/); if(!m) return html;
+  return `<details class="fold card"${open?' open':''}><summary><span class="ft">${m[1]}</span></summary><div class="fb">${m[2]}</div></details>`;
+}
 function utilSpots(L){
   const g = new Map();
   for(const it of L){
@@ -50,9 +55,11 @@ function utilCoach(ms, L){
   if(L.length>=8 && deathsU.length/L.length>=0.4) tips.push(`In ${deathsU.length} morti su ${L.length} (${pc(deathsU.length/L.length)}) avevi ancora utility: in media circa ${Math.round(lost/deathsU.length/10)*10} $ di granate ancora in tasca a ogni morte. Prima di ogni contatto lancia la prima flash o smoke che hai in mano.`);
   if(sm.length>=5){ const gd = sm.filter(u=>u.ne>=1).length; if(gd/sm.length<0.5) tips.push(`Solo il ${pc(gd/sm.length)} delle tue smoke aveva un nemico entro ~15 m dal punto di scoppio (metrica Leetify): molte vengono lanciate senza che nessuno stia arrivando. Tienile per l'execute o per tagliare un push che stai sentendo.`); }
   const spots = utilSpots(L);
-  const spotHtml = spots.map(s=>{
+  const spotHtml = spots.map((s,i)=>{
     const adv = throwAdvice(s);
-    return `<div class="iss ok" style="--ic:#e8c53a"><h4>${mapName(s.map)} · ${s.side} · in ${esc(s.pl)}${s.kp!=='?'&&s.kp!==s.pl?` (di solito ti uccide chi è a ${esc(s.kp)})`:''} <span class="sub" style="display:inline">(${s.n} ${s.n===1?'morte':'morti'} con utility in tasca${s.fl?`, ${s.fl} con flash`:''}${s.sm?`, ${s.sm} con smoke`:''})</span></h4>${adv.map(a=>`<p><b>${esc(a.k)}:</b> ${esc(a.t)}</p>`).join('')}</div>`;
+    const tags = `<span class="tg">${s.n} ${s.n===1?'morte':'morti'}</span>${s.fl?`<span class="tg warm">flash ${s.fl}</span>`:''}${s.sm?`<span class="tg">smoke ${s.sm}</span>`:''}`;
+    return `<details class="acc"${i===0?' open':''}><summary><span class="side ${s.side}">${s.side}</span><span class="at">${esc(mapName(s.map))} · in ${esc(s.pl)}</span>${s.kp!=='?'&&s.kp!==s.pl?`<span class="am">di solito ti uccide chi è a ${esc(s.kp)}</span>`:''}<span class="ar">${tags}</span></summary>
+      <div class="ab">${adv.map(a=>`<div class="arow"><b>${esc(a.k)}</b><p>${esc(a.t)}</p></div>`).join('')}</div></details>`;
   }).join('');
   const flN = fl.length;
   const kpis = [
@@ -70,8 +77,8 @@ function utilCoach(ms, L){
     ${!flN?`<p class="sub" style="margin-top:8px">I dettagli per ogni flash (nemici accecati, kill dopo la flash) e per ogni smoke si registrano solo per le demo nuove.</p>`:''}
     <div class="sbox"><h3 style="margin:0 0 2px">Dove muori con utility in tasca</h3>
     <div class="sub">Raggruppo le morti per mappa, lato e posizione in cui sei morto. Le indicazioni sono principi ricavati da distanza, arma e numero di avversari; il punto esatto di lancio (lineup) va imparato con una mappa di pratica.</div>
-    ${spotHtml || '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}</div>
-    <div class="sbox"><h3 style="margin:0 0 2px">Tecnica di lancio</h3>
+    ${spotHtml ? `<div class="accbar"><button type="button" class="lnk" data-acc="open">Apri tutto</button> · <button type="button" class="lnk" data-acc="close">Chiudi tutto</button></div><div class="accs">${spotHtml}</div>` : '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}</div>
+    <details class="acc fold2"><summary><span class="at">Tecnica di lancio</span><span class="am">come lanciare flash e smoke, allenamento</span></summary><div class="ab">
     <ul style="margin:6px 0 0;padding-left:20px">
       <li style="margin:4px 0"><b>Tasto sinistro</b> = lancio lungo, <b>destro</b> = lancio corto basso, <b>entrambi</b> = distanza media. Correre in avanti aumenta la distanza, indietro la riduce; da fermo il lancio è più ripetibile.</li>
       <li style="margin:4px 0"><b>Jump throw</b>: tieni premuto il tasto sinistro, salta e rilascia mentre sali. Il bind a tasto unico non funziona più sui server ufficiali, si fa a mano.</li>
@@ -80,7 +87,7 @@ function utilCoach(ms, L){
       <li style="margin:4px 0"><b>Priorità di acquisto</b> a soldi limitati: smoke, una flash, molotov, seconda flash, HE.</li>
       <li style="margin:4px 0"><b>Allenamento</b>: in una mappa offline con <code>sv_cheats 1</code> usa <code>cl_grenadepreview 1</code> (traiettoria) e <code>sv_rethrow_last_grenade</code> (ripeti l'ultimo lancio). Ripeti ogni lineup 10 volte.</li>
     </ul>
-    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div></div>`;
+    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div></details></div>`;
 }
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;
@@ -193,19 +200,21 @@ function viewErrori(ms){
   const aim = aimSection(ms);
   const note = missNote + (L.length<20 ? `<div class="note">Analizzate ${L.length} morti di ${ms.length} ${ms.length===1?'partita':'partite'}: sono indizi, non verdetti. Il quadro diventa solido dopo qualche partita in più.</div>` : '');
   return `${note}
-  <div class="card"><h2>Cosa ti costa più round</h2><div class="sub">Su ${L.length} morti analizzate (${cnt.scontro||0} in pieno scontro, ${pc((cnt.scontro||0)/L.length)}: kill appena fatta o compagno caduto vicino, non conteggiate come errori di reazione). Una morte può avere più cause. I segnali sono regole sui dati della demo: valuta sempre se nel contesto del round avevano senso.</div>
-    ${top.length?`<ol style="margin:6px 0 0;padding-left:20px">${top.map(k=>`<li style="margin:4px 0"><b>${FOCUS[k]}</b> (${ECAT[k]}: ${cnt[k]} morti su ${L.length}, ${pc(cnt[k]/L.length)}). <span class="sub">Come allenarlo: ${esc(DRILL[k]||'')}</span></li>`).join('')}</ol>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
-    <div class="chips" style="margin-top:14px"><button data-ecat="all" aria-pressed="${state.eCat==='all'}">Tutte (${L.length})</button>${order.map(k=>`<button data-ecat="${k}" aria-pressed="${state.eCat===k}">${ECAT[k]} (${cnt[k]})</button>`).join('')}</div></div>
+  <div class="card"><h2>Cosa ti costa più round</h2><div class="sub">Su ${L.length} morti analizzate. Una morte può avere più cause.</div>
+    ${top.length?`<div class="causes">${top.map((k,i)=>`<div class="cause"><div class="ch"><b>${i+1} · ${ECAT[k]}</b><span class="cv">${pc(cnt[k]/L.length)}</span></div><div class="bar"><i style="width:${Math.min(100,cnt[k]/L.length*100)}%;background:var(--warn)"></i></div><div class="sub">${cnt[k]} morti su ${L.length}. ${esc(FOCUS[k])}.${i?`<br>${esc(DRILL[k]||'')}`:''}</div></div>`).join('')}</div>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
+    <details class="mini"><summary>Come leggere questi dati</summary><div class="sub">${cnt.scontro||0} morti su ${L.length} (${pc((cnt.scontro||0)/L.length)}) sono avvenute in pieno scontro: kill appena fatta o compagno caduto vicino, non conteggiate come errori di reazione. I segnali sono regole sui dati della demo: valuta sempre se nel contesto del round avevano senso.</div></details>
+    <div class="fbar2"><label>Causa <select id="eCatSel"><option value="all">Tutte (${L.length})</option>${order.map(k=>`<option value="${k}" ${state.eCat===k?'selected':''}>${ECAT[k]} (${cnt[k]})</option>`).join('')}</select></label>
+      ${state.ePlace?`<button type="button" class="fchip" data-eplace="${esc(state.ePlace)}" title="Togli il filtro">Punto: ${esc(state.ePlace.split('|')[1]||'?')} ✕</button>`:''}</div></div>
   ${trendCard(ms, L, top)}
   ${utilCoach(ms, L)}
   ${aim}
-  ${posSummary(L)}
-  ${workshopCard(ms,cnt,L)}
+  ${foldCard(posSummary(L), true)}
+  ${foldCard(workshopCard(ms,cnt,L))}
   <div class="grid g2">${timingBars(ms)}${placeTable(L)}</div>
   <h2 style="margin:22px 0 4px">Le singole morti</h2>
   <div class="sub" style="margin-bottom:8px">Il dettaglio di ogni morte (mappa, fotogrammi, cosa fare) è dentro la singola partita, nel tab "Errori". Clicca una riga per aprirla direttamente.</div>
   ${vis.length?`<div class="card"><div class="scroll"><table class="timeline"><thead><tr><th>Partita</th><th>Mappa</th><th>Round</th><th>Lato</th><th>Dove</th><th>Cause</th></tr></thead><tbody>${vis.slice(0,state.eShown).map(it=>`<tr class="click" data-gomatch="${it.m.id}" data-gofocus="d-${it.m.id}-${it.e.r}-${it.e.tick}"><td>#${idxOf(it.m)}</td><td>${mapName(it.m.map)}</td><td>${it.e.r}</td><td><span class="side ${it.e.side}">${it.e.side}</span></td><td style="text-align:left">${esc(it.e.c.pl||'?')}</td><td style="text-align:left;white-space:normal">${it.rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).join(', ')||'nessuna evidente'}</td></tr>`).join('')}</tbody></table></div></div>`:'<div class="empty">Nessuna morte con questo filtro.</div>'}
   ${vis.length>state.eShown?`<p style="text-align:center"><button class="btn" data-emore="1">Mostra altre (${vis.length-state.eShown})</button></p>`:''}
-  ${sourcesCard()}`;
+  ${foldCard(sourcesCard())}`;
 }
 

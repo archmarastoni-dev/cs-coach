@@ -9,28 +9,19 @@
 <style>
 /* Layout: fixed filter bar on top, horizontal tabs, card grid content. Colours: blue = CT, orange = T. */
 :root{
-  color-scheme: light;
-  --bg:#eef0f3; --surface:#ffffff; --surface-2:#f4f6f8; --line:#dde1e7;
-  --ink:#121820; --ink-2:#4b5563; --ink-3:#7a8493;
-  --accent:#2a78d6; --ct:#2a78d6; --t:#eb6834;
-  --good:#128a4f; --bad:#d8383a; --warn:#b97a00;
+  color-scheme: dark;
+  --bg:#0d1117; --surface:#151b24; --surface-2:#1c2430; --line:#283241;
+  --ink:#e8edf4; --ink-2:#aeb9c8; --ink-3:#8995a6;
+  --accent:#6ea2ec; --accent-bg:#2b4f86; --accent-fg:#eaf2ff; --ct:#6ea2ec; --t:#e5aa3d; --on-side:#0d1117;
+  --good:#6cc46f; --bad:#f0605f; --warn:#e5aa3d;
   --font-d:'Rajdhani','Arial Narrow',sans-serif; --font-b:'IBM Plex Sans',system-ui,sans-serif;
 }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    color-scheme: dark;
-    --bg:#0e1217; --surface:#161c24; --surface-2:#1c242e; --line:#28313d;
-    --ink:#e8ecf1; --ink-2:#aab3bf; --ink-3:#7c8795;
-    --accent:#3987e5; --ct:#3987e5; --t:#e0652f;
-    --good:#2bb673; --bad:#ee5a5a; --warn:#e0a526;
-  }
-}
-:root[data-theme="dark"]{
-  color-scheme: dark;
-  --bg:#0e1217; --surface:#161c24; --surface-2:#1c242e; --line:#28313d;
-  --ink:#e8ecf1; --ink-2:#aab3bf; --ink-3:#7c8795;
-  --accent:#3987e5; --ct:#3987e5; --t:#e0652f;
-  --good:#2bb673; --bad:#ee5a5a; --warn:#e0a526;
+:root[data-theme="light"]{
+  color-scheme: light;
+  --bg:#eef0f3; --surface:#ffffff; --surface-2:#f4f6f8; --line:#dde1e7;
+  --ink:#121820; --ink-2:#4b5563; --ink-3:#5f6b7a;
+  --accent:#2a78d6; --accent-bg:#2a78d6; --accent-fg:#fff; --ct:#2a78d6; --t:#c95a22; --on-side:#fff;
+  --good:#128a4f; --bad:#d8383a; --warn:#8f5f00;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-b);font-size:14px;line-height:1.45}
@@ -38,23 +29,43 @@ h1,h2,h3{font-family:var(--font-d);margin:0;font-weight:600;letter-spacing:.02em
 button,select,input{font:inherit;color:inherit}
 .wrap{max-width:1240px;margin:0 auto;padding:0 16px 48px}
 header.top .wrap{padding-bottom:0}
-header.top{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 0}
-.top-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
-.brand{display:flex;align-items:center;gap:10px}
-.brand h1{font-size:26px;text-transform:uppercase}
-.brand span{color:var(--ink-3);font-size:13px}
-.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.filters label{display:flex;gap:6px;align-items:center;color:var(--ink-3);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 96%,transparent);border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
+header.top .wrap{position:relative}
+.hdr{display:flex;align-items:center;gap:14px;min-height:56px}
+.hdr h1{font-size:23px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.navb{display:flex;gap:6px}
+.hact{display:flex;gap:8px;align-items:center;margin-left:auto}
+.hact .btn{height:32px;padding:0 12px;display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:13px}
+.btn.pri{background:var(--accent-bg);border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent-fg)}
+.btn.pri:disabled{opacity:.8;cursor:default}
+.fdot{width:7px;height:7px;border-radius:50%;background:var(--warn);display:inline-block}
+.fdot[hidden]{display:none}
+.pop{position:absolute;right:16px;top:calc(100% - 4px);width:min(440px,calc(100vw - 32px));background:var(--surface-2);border:1px solid color-mix(in srgb,var(--line) 60%,var(--ink-3));border-radius:12px;padding:14px;box-shadow:0 18px 40px rgba(0,0,0,.45);z-index:30}
+.pop[hidden]{display:none}
+.pop-sm{width:230px;padding:6px}
+.pophead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.lnk{border:0;background:none;color:var(--accent);cursor:pointer;font-size:13px;padding:0}
+.fg{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;margin:9px 0}
+.fl{color:var(--ink-3);font-size:11.5px;text-transform:uppercase;letter-spacing:.07em}
+.fg select{width:max-content;min-width:150px}
+.mitem{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);padding:9px 10px;border-radius:8px;cursor:pointer}
+.mitem:hover{background:var(--surface)}
+.strip{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-top:12px;padding-bottom:0}
+.strip .who{color:var(--ink-3);font-size:13px;margin-right:6px}
+.fchip{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:99px;padding:2px 11px;cursor:pointer;font-size:12.5px}
+.fchip:hover{border-color:var(--accent);color:var(--ink)}
 select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
 .seg button{border:0;background:transparent;padding:6px 11px;cursor:pointer;color:var(--ink-2)}
-.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button[aria-pressed="true"]{background:var(--accent-bg);color:var(--accent-fg)}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 11px;cursor:pointer}
 .btn:hover{border-color:var(--accent)}
 button:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-nav.tabs{display:flex;gap:2px;overflow-x:auto;margin-top:10px}
-nav.tabs button{border:0;background:transparent;padding:8px 14px;cursor:pointer;color:var(--ink-2);border-bottom:3px solid transparent;font-family:var(--font-d);font-size:17px;font-weight:600;letter-spacing:.03em;white-space:nowrap}
-nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;margin-left:6px;align-self:stretch}
+nav.tabs button{border:0;background:transparent;padding:0 10px;cursor:pointer;color:var(--ink-2);font-size:14.5px;font-weight:500;white-space:nowrap;position:relative;min-height:56px}
+nav.tabs button[aria-selected="true"]{color:var(--ink);font-weight:600}
+nav.tabs button[aria-selected="true"]::after{content:"";position:absolute;left:9px;right:9px;bottom:-1px;height:2px;background:var(--accent)}
+@media (max-width:1240px){.hdr{flex-wrap:wrap;gap:4px 14px;padding-top:8px}nav.tabs{order:3;flex-basis:100%;margin-left:0}nav.tabs button{min-height:40px}}
 main{padding-top:18px;display:flex;flex-direction:column;gap:16px}
 .grid{display:grid;gap:12px}
 .g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
@@ -80,7 +91,7 @@ tr.me td{background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .pill.W{background:color-mix(in srgb,var(--good) 20%,transparent);color:var(--good)}
 .pill.L{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad)}
 .pill.D{background:var(--surface-2);color:var(--ink-2)}
-.side{display:inline-block;width:22px;text-align:center;border-radius:4px;font-size:11px;font-weight:700;color:#fff}
+.side{display:inline-block;width:22px;text-align:center;border-radius:4px;font-size:11px;font-weight:700;color:var(--on-side)}
 .side.CT{background:var(--ct)} .side.T{background:var(--t)}
 .bar{height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden;min-width:60px}
 .bar>i{display:block;height:100%;background:var(--accent);border-radius:4px}
@@ -106,7 +117,7 @@ svg.radar{width:100%;height:auto;display:block;border-radius:8px;background:#000
 .back{margin-bottom:6px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chips button{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:3px 11px;cursor:pointer;color:var(--ink-2)}
-.chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chips button[aria-pressed="true"]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-fg)}
 .empty{padding:40px 16px;text-align:center;color:var(--ink-3)}
 code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-2);border-radius:6px}
 pre{padding:10px 12px;overflow-x:auto}
@@ -176,16 +187,62 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 .hbar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:10px 0 12px}
 .hbar label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
 .hbar .hcount{margin-left:auto;font-size:13px;color:var(--ink-3)}
-.hbar .btn.on{background:var(--accent);color:#fff}
+.hbar .btn.on{background:var(--accent-bg);color:var(--accent-fg)}
 .kind{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
 .kind.k-FACEIT{border-color:#f60;color:#f60}.kind.k-Premier{border-color:#3b82f6;color:#3b82f6}.kind.k-Competitiva{border-color:#8b5cf6;color:#8b5cf6}
 .hdate{font:inherit;padding:1px 4px}.nowrap{white-space:nowrap}
 .sbox .iss{background:var(--surface)}
 .warnb{color:var(--warn);cursor:help;font-size:14px}
+
+/* trend arrows (KPI cards) and moving-average chip */
+.trend{display:block;font-weight:700;font-size:12.5px;margin-bottom:1px;font-variant-numeric:tabular-nums}
+.trend.up{color:var(--good)}.trend.down{color:var(--bad)}.trend.flat{color:var(--ink-3)}
+.tchip{display:flex;justify-content:flex-end;margin:2px 0 0}
+.chip{display:inline-block;padding:3px 10px;border-radius:99px;font-weight:700;font-size:12.5px;background:var(--surface-2);color:var(--ink-2)}
+.chip.up{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+.chip.down{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.btn[hidden]{display:none!important}
+.g21{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}@media(max-width:900px){.g21{grid-template-columns:1fr}}
+
+/* readable line length */
+.card p,.card li,.iss p{max-width:80ch}
+/* error page: causes, accordions */
+.causes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px 26px;margin:12px 0 4px}
+.cause .ch{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cause .cv{font-family:var(--font-d);font-size:24px;font-weight:700;color:var(--warn)}
+.cause .bar{margin:5px 0}
+.cause .sub{margin:0;font-size:12.5px}
+.mini{margin-top:10px}.mini summary{cursor:pointer;color:var(--accent);font-size:13px}.mini .sub{margin-top:6px}
+.fbar2{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:14px}
+.fbar2 label{display:flex;gap:8px;align-items:center;color:var(--ink-3);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.accbar{display:flex;gap:6px;justify-content:flex-end;color:var(--ink-3);font-size:13px;margin:4px 0 -2px}
+details.acc{border:1px solid var(--line);border-radius:10px;background:var(--surface);margin-top:8px;overflow:hidden}
+details.acc>summary{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;list-style:none;flex-wrap:wrap}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary::before{content:"▸";color:var(--ink-3);width:10px;transition:transform .12s}
+details.acc[open]>summary::before{transform:rotate(90deg)}
+details.acc>summary:hover{background:var(--surface-2)}
+.acc .at{font-weight:600}.acc .am{color:var(--ink-3);font-size:12.5px}
+.acc .ar{margin-left:auto;display:flex;gap:6px}
+.tg{font-size:11.5px;padding:1px 8px;border-radius:6px;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+.tg.warm{color:var(--warn)}
+.acc .ab{padding:2px 14px 12px;border-top:1px solid var(--line)}
+.arow{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.arow:last-child{border-bottom:0}
+.arow b{color:var(--ink-2);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;padding-top:2px}
+.arow p{margin:0}
+details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:"▸";color:var(--ink-3)}
+details.fold[open]>summary::before{content:"▾"}
+details.fold .ft{font-family:var(--font-d);font-size:20px;font-weight:600;letter-spacing:.02em}
+details.fold .fb{margin-top:8px}
+@media(max-width:700px){.arow{grid-template-columns:1fr;gap:2px}}
+.fg .seg{width:max-content}
 </style>
 <style>
 /* E-learning, in-app image viewer and match-analysis styles */
-.lrn-btn{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+.lrn-btn{background:var(--accent-bg);color:var(--accent-fg);border-color:var(--accent);font-weight:700}
 .lrn-maps{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .lrn-map{display:flex;flex-direction:column;gap:4px;text-align:left;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);cursor:pointer;color:var(--ink);font:inherit}
 .lrn-map:hover{border-color:var(--accent)}
@@ -242,12 +299,20 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div class="top-row">
-    <div class="brand"><button type="button" class="btn navbtn" id="navBack" title="Indietro" aria-label="Indietro">←</button><button type="button" class="btn navbtn" id="navFwd" title="Avanti" aria-label="Avanti">→</button><h1>CS Coach</h1><span id="who"></span><button type="button" class="btn" id="scanBtn" hidden title="Cerca e leggi subito le demo nuove">⟳ Cerca demo</button></div>
-    <div class="filters" id="filters"></div>
+  <div class="hdr">
+    <div class="navb"><button type="button" class="btn navbtn" id="navBack" title="Indietro" aria-label="Indietro">←</button><button type="button" class="btn navbtn" id="navFwd" title="Avanti" aria-label="Avanti">→</button></div>
+    <h1>CS Coach</h1>
+    <nav class="tabs" id="tabs" role="tablist"></nav>
+    <div class="hact">
+      <button type="button" class="btn" id="fBtn" aria-expanded="false" aria-controls="fpop">Filtri<i class="fdot" id="fDot" hidden></i> ▾</button>
+      <button type="button" class="btn pri" id="scanBtn" hidden title="Cerca e leggi subito le demo nuove">⟳ Cerca demo</button>
+      <button type="button" class="btn" id="moreBtn" aria-label="Altro" title="Altro">⋯</button>
+    </div>
   </div>
-  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div class="pop" id="fpop" hidden><div class="pophead"><b>Filtri</b><button type="button" class="lnk" data-clr="all">Azzera</button></div><div id="filters"></div></div>
+  <div class="pop pop-sm" id="more" hidden><div id="moreItems"></div></div>
 </div></header>
+<div class="wrap strip" id="strip"></div>
 <div class="wrap"><main id="main"></main></div>
 <div id="tip"></div>
 <input type="file" id="imp" accept=".json,application/json" hidden>
@@ -500,23 +565,34 @@ function insights(ms, side){
 const TABS = LITE ? [['panoramica','Panoramica']] : [['panoramica','Panoramica'],['partite','Partite'],['mappe','Mappe'],['utility','Utility e smoke'],['errori','Errori e fix'],['armi','Armi e mira'],['coach','Coach']];
 
 function renderChrome(){
-  if(LITE){ $('#who').textContent = (DATA.title||'')+' · '+state.matches.length+' partite recenti'; $('#filters').innerHTML=''; $('#tabs').style.display='none'; return; }
+  if(LITE){ $('#strip').innerHTML = `<span class="who">${DATA.title||''} · ${state.matches.length} partite recenti</span>`; $('#filters').innerHTML=''; $('#tabs').style.display='none'; document.querySelector('.hact').style.display='none'; return; }
   $('#tabs').style.display = state.learn.on ? 'none' : '';
-  $('#who').textContent = (state.matches[0] && me(state.matches[0]) ? me(state.matches[0]).name : '') + ' · ' + state.matches.length + (state.matches.length===1?' partita':' partite');
+  const who = (state.matches[0] && me(state.matches[0]) ? me(state.matches[0]).name : '') + ' · ' + state.matches.length + (state.matches.length===1?' partita':' partite');
   const maps = [...new Set(state.matches.map(m=>m.map))], kinds = [...new Set(state.matches.map(kindOf))];
   $('#filters').innerHTML = `
-    <label>Mappa <select id="fMap"><option value="all">Tutte</option>${maps.map(m=>`<option value="${m}" ${state.fMap===m?'selected':''}>${mapName(m)}</option>`).join('')}</select></label>
-    ${kinds.length>1?`<label>Tipo <select id="fKind"><option value="all">Tutti</option>${kinds.map(k=>`<option value="${k}" ${state.fKind===k?'selected':''}>${k}</option>`).join('')}</select></label>`:''}
-    <label>Lato <span class="seg" id="fSide">${['all','CT','T'].map(s=>`<button data-v="${s}" aria-pressed="${state.fSide===s}">${s==='all'?'Tutti':s}</button>`).join('')}</span></label>
-    <label>Esito <span class="seg" id="fRes">${[['all','Tutti'],['W','Vinte'],['L','Perse']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.fRes===s}">${t}</button>`).join('')}</span></label>
-    <label>Dati <span class="seg" id="mode">${[['base','Base'],['adv','Avanzati']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.mode===s}">${t}</button>`).join('')}</span></label>
-    <button class="btn" id="btnImp">Importa dati</button>
-    <button class="btn lrn-btn" data-learn="${state.learn.on?0:1}">${state.learn.on?'← Torna all\'analisi':'📚 E-learning'}</button>`;
+    <div class="fg"><span class="fl">Mappa</span><select id="fMap"><option value="all">Tutte</option>${maps.map(m=>`<option value="${m}" ${state.fMap===m?'selected':''}>${mapName(m)}</option>`).join('')}</select></div>
+    ${kinds.length>1?`<div class="fg"><span class="fl">Tipo</span><select id="fKind"><option value="all">Tutti</option>${kinds.map(k=>`<option value="${k}" ${state.fKind===k?'selected':''}>${k}</option>`).join('')}</select></div>`:''}
+    <div class="fg"><span class="fl">Lato</span><span class="seg" id="fSide">${['all','CT','T'].map(s=>`<button data-v="${s}" aria-pressed="${state.fSide===s}">${s==='all'?'Tutti':s}</button>`).join('')}</span></div>
+    <div class="fg"><span class="fl">Esito</span><span class="seg" id="fRes">${[['all','Tutti'],['W','Vinte'],['L','Perse']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.fRes===s}">${t}</button>`).join('')}</span></div>
+    <div class="fg"><span class="fl">Dati</span><span class="seg" id="mode">${[['base','Base'],['adv','Avanzati']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.mode===s}">${t}</button>`).join('')}</span></div>`;
+  const act = [['fMap', state.fMap!=='all' ? 'Mappa: '+mapName(state.fMap) : ''], ['fKind', state.fKind!=='all' ? 'Tipo: '+state.fKind : ''], ['fSide', state.fSide!=='all' ? 'Lato: '+state.fSide : ''], ['fRes', state.fRes!=='all' ? (state.fRes==='W'?'Solo vinte':'Solo perse') : '']].filter(x=>x[1]);
+  $('#strip').innerHTML = `<span class="who">${who}</span>${act.map(([k,t])=>`<button type="button" class="fchip" data-clr="${k}" title="Togli questo filtro">${t} ✕</button>`).join('')}`;
+  $('#fDot').hidden = !act.length; $('#fBtn').firstChild.textContent = act.length ? 'Filtri · '+act.length : 'Filtri';
+  $('#moreItems').innerHTML = `<button type="button" class="mitem" id="btnImp">Importa dati…</button><button type="button" class="mitem" data-learn="${state.learn.on?0:1}">${state.learn.on?'← Torna all\'analisi':'📚 E-learning'}</button>`;
   $('#tabs').innerHTML = TABS.map(([k,t])=>`<button role="tab" data-tab="${k}" aria-selected="${state.tab===k}">${t}</button>`).join('');
 }
 
-function kpi(lab, val, ref, cls=''){
-  return `<div class="card kpi"><div class="lab">${lab}</div><div class="val ${cls}">${val}</div><div class="ref">${ref||'&nbsp;'}</div></div>`;
+function kpi(lab, val, ref, cls='', trend=''){
+  return `<div class="card kpi"><div class="lab">${lab}</div><div class="val ${cls}">${val}</div><div class="ref">${trend}${ref||'&nbsp;'}</div></div>`;
+}
+/* Trend arrow on a KPI card: the last 5 matches against the ones before them (needs at least 3 older matches). */
+function trendOf(ms, side, fn, dec, unit=''){
+  if(ms.length < 8) return '';
+  const a = fn(agg(ms.slice(-5), side)), b = fn(agg(ms.slice(0,-5), side)), d = a - b;
+  if(!isFinite(d)) return '';
+  const q = Math.pow(10, -dec) / 2, flat = Math.abs(d) < q;
+  const cls = flat ? 'flat' : d > 0 ? 'up' : 'down';
+  return `<span class="trend ${cls}" ${tipAttr('Ultime 5 partite: '+a.toFixed(dec)+unit+' · prima: '+b.toFixed(dec)+unit)}>${flat?'▬':d>0?'▲':'▼'} ${Math.abs(d).toFixed(dec)}${unit}</span>`;
 }
 
 function trendSVG(ms, side, key){
@@ -532,12 +608,25 @@ function trendSVG(ms, side, key){
   let g=''; for(let i=0;i<=3;i++){ const v=lo+(hi-lo)*i/3; g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end" fill="var(--ink-3)" font-size="11">${v.toFixed(dec)}</text>`; }
   const step = Math.max(1, Math.ceil(pts.length/12));
   const path = pts.map((p,i)=>`${i?'L':'M'}${X(i)} ${Y(p.v)}`).join('');
-  const dots = pts.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="6" fill="${p.m.result==='W'?'var(--good)':'var(--bad)'}" stroke="var(--surface)" stroke-width="2" ${tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+p.m.score.us+'-'+p.m.score.them+' · '+lab+' '+p.v.toFixed(dec))}/>
-    ${i%step===0||i===pts.length-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11">#${idxOf(p.m)}</text>`:''}`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Andamento ${lab}">${g}
-    <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--accent)" stroke-dasharray="4 4" opacity=".7"/>
-    <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>${dots}</svg>
-    <div class="legend"><span><span class="dot" style="background:var(--good)"></span> Vinta</span><span><span class="dot" style="background:var(--bad)"></span> Persa</span><span>Linea tratteggiata: media ${avg.toFixed(dec)}</span></div>`;
+  // moving average of the last MA_N matches: a line that moves up when you improve and down when you get worse
+  const MA_N = 15, N = pts.length >= MA_N + 2 ? MA_N : (pts.length >= 8 ? Math.max(4, Math.floor(pts.length/2)) : 0);
+  let maSvg = '', chip = '';
+  if(N){
+    const ma = pts.map((p,i)=> i < N-1 ? null : vs.slice(i-N+1, i+1).reduce((a,b)=>a+b,0)/N);
+    const ix = ma.map((v,i)=>v==null?null:i).filter(i=>i!=null), i0 = ix[0], i1 = ix[ix.length-1];
+    maSvg = `<path d="${ix.map((i,j)=>`${j?'L':'M'}${X(i)} ${Y(ma[i])}`).join('')}" fill="none" stroke="var(--warn)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${X(i0)}" cy="${Y(ma[i0])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/><text x="${X(i0)}" y="${Y(ma[i0])-12}" text-anchor="middle" fill="var(--warn)" font-size="12" font-weight="700">${ma[i0].toFixed(dec)}</text>
+      <circle cx="${X(i1)}" cy="${Y(ma[i1])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/><text x="${X(i1)-8}" y="${Y(ma[i1])+22}" text-anchor="end" fill="var(--warn)" font-size="12" font-weight="700">oggi ${ma[i1].toFixed(dec)}</text>`;
+    const d = ma[i1] - ma[i0], flat = Math.abs(d) < Math.pow(10,-dec)/2;
+    chip = `<div class="tchip"><span class="chip ${flat?'flat':d>0?'up':'down'}">${flat?'▬ stabile':(d>0?'▲ ':'▼ ')+Math.abs(d).toFixed(dec)} dalla partita #${idxOf(pts[i0].m)}</span></div>`;
+  }
+  const dots = pts.map((p,i)=>{ const win = p.m.result==='W', tip = tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+p.m.score.us+'-'+p.m.score.them+' · '+lab+' '+p.v.toFixed(dec));
+    return (win ? `<circle cx="${X(i)}" cy="${Y(p.v)}" r="5.5" fill="var(--good)" ${tip}/>` : `<circle cx="${X(i)}" cy="${Y(p.v)}" r="4.5" fill="var(--surface)" stroke="var(--bad)" stroke-width="2.2" ${tip}/>`)
+    + (i%step===0||i===pts.length-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11.5">#${idxOf(p.m)}</text>`:''); }).join('');
+  return `${chip}<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Andamento ${lab}">${g}
+    <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--ink-3)" stroke-dasharray="5 4"/>
+    <path d="${path}" fill="none" stroke="var(--line)" stroke-width="1.5"/>${dots}${maSvg}</svg>
+    <div class="legend"><span><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="var(--good)"/></svg> Vinta</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--bad)" stroke-width="2"/></svg> Persa</span>${N?`<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--warn)" stroke-width="3"/></svg> Media delle ultime ${N}</span>`:''}<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--ink-3)" stroke-dasharray="4 3"/></svg> Media totale ${avg.toFixed(dec)}</span></div>`;
 }
 
 function profileCard(){
@@ -553,13 +642,13 @@ function viewPanoramica(ms){
   const side = state.fSide, A = agg(ms, side), U = utilAgg(ms, side);
   const adv = state.mode==='adv';
   const k = [
-    kpi('Rating (stima)', f1(A.rating,2), 'rif. '+REF.rating.toFixed(2), cmpClass(A.rating,REF.rating)),
-    kpi('K/D', f1(A.kd,2), `${A.k} kill · ${A.d} morti`, cmpClass(A.kd,REF.kd)),
-    kpi('ADR', f1(A.adr,0), 'rif. '+REF.adr, cmpClass(A.adr,REF.adr)),
-    kpi('KAST', pc(A.kastP), 'rif. '+pc(REF.kastP), cmpClass(A.kastP,REF.kastP)),
-    kpi('HS %', pc(A.hsP), 'rif. '+pc(REF.hsP), cmpClass(A.hsP,REF.hsP)),
+    kpi('Rating (stima)', f1(A.rating,2), 'rif. '+REF.rating.toFixed(2), cmpClass(A.rating,REF.rating), trendOf(ms,side,a=>a.rating,2)),
+    kpi('K/D', f1(A.kd,2), `${A.k} kill · ${A.d} morti`, cmpClass(A.kd,REF.kd), trendOf(ms,side,a=>a.kd,2)),
+    kpi('ADR', f1(A.adr,0), 'rif. '+REF.adr, cmpClass(A.adr,REF.adr), trendOf(ms,side,a=>a.adr,0)),
+    kpi('KAST', pc(A.kastP), 'rif. '+pc(REF.kastP), cmpClass(A.kastP,REF.kastP), trendOf(ms,side,a=>a.kastP*100,0,' pt')),
+    kpi('HS %', pc(A.hsP), 'rif. '+pc(REF.hsP), cmpClass(A.hsP,REF.hsP), trendOf(ms,side,a=>a.hsP*100,0,' pt')),
     kpi('Partite vinte', `${A.mw}/${A.n}`, side==='all'?'':'(esito partita)'),
-    kpi('Round vinti', pc(A.rwP), `${A.rw} su ${A.R}`, cmpClass(A.rwP,REF.rwP))
+    kpi('Round vinti', pc(A.rwP), `${A.rw} su ${A.R}`, cmpClass(A.rwP,REF.rwP), trendOf(ms,side,a=>a.rwP*100,0,' pt'))
   ];
   if(adv) k.push(
     kpi('Duelli d\'apertura', pc(A.okP), `${A.ok} vinti · ${A.od} persi`, cmpClass(A.okP,REF.okP)),
@@ -593,8 +682,8 @@ function viewPanoramica(ms){
       ${bk.map((b,i)=>`<div class="hrow"><span>${b[0]}${b[1]>=999?'+':'-'+b[1]} s</span><div><div class="bar" ${tipAttr(kc[i]+' kill')}><i style="width:${kc[i]/mx*100}%;background:var(--good)"></i></div><div class="bar" style="margin-top:3px" ${tipAttr(dc[i]+' morti')}><i style="width:${dc[i]/mx*100}%;background:var(--bad)"></i></div></div><span class="n">${kc[i]} / ${dc[i]}</span></div>`).join('')}</div>`;
   }
   return `${profileCard()}<div class="grid kpis">${k.join('')}</div>${liteNote()}
-  <div class="grid g2">
-    <div class="card"><h2>Andamento partita per partita</h2><div class="sub">Ogni punto è una partita. Passa sopra per i dettagli.</div>
+  <div class="grid g21">
+    <div class="card"><h2>Andamento partita per partita</h2><div class="sub">Ogni punto è una partita. La linea oro è la media delle ultime 15: se scende, stai peggiorando.</div>
       <div class="chips" id="trendChips">${[['rating','Rating'],['adr','ADR'],['kd','K/D'],['kastP','KAST'],['hsP','HS %'],['okP','Duelli apertura']].map(([k2,t])=>`<button data-trend="${k2}" aria-pressed="${state.trend===k2}">${t}</button>`).join('')}</div>
       ${trendSVG(ms, side, state.trend)}</div>
     <div class="card"><h2>CT contro T</h2><div class="sub">Il lato è sempre quello che giocavi in quel round.</div>
@@ -1484,6 +1573,11 @@ function matchErrors(m){
 /* ---- how to throw flashes and smokes (Mistakes tab) ---- */
 function medianOf(a){ if(!a.length) return NaN; const s=a.slice().sort((x,y)=>x-y), h=s.length>>1; return s.length%2?s[h]:(s[h-1]+s[h])/2; }
 function modeOf(a){ const c={}; let b=null; for(const x of a){ if(!x) continue; c[x]=(c[x]||0)+1; if(b===null||c[x]>c[b]) b=x; } return b; }
+/* Collapsible blocks: native <details>, no re-render needed. foldCard() turns an existing card (<h2> + body) into one. */
+function foldCard(html, open=false){
+  const m = html.match(/^\s*<div class="card"><h2>([\s\S]*?)<\/h2>([\s\S]*)<\/div>\s*$/); if(!m) return html;
+  return `<details class="fold card"${open?' open':''}><summary><span class="ft">${m[1]}</span></summary><div class="fb">${m[2]}</div></details>`;
+}
 function utilSpots(L){
   const g = new Map();
   for(const it of L){
@@ -1533,9 +1627,11 @@ function utilCoach(ms, L){
   if(L.length>=8 && deathsU.length/L.length>=0.4) tips.push(`In ${deathsU.length} morti su ${L.length} (${pc(deathsU.length/L.length)}) avevi ancora utility: in media circa ${Math.round(lost/deathsU.length/10)*10} $ di granate ancora in tasca a ogni morte. Prima di ogni contatto lancia la prima flash o smoke che hai in mano.`);
   if(sm.length>=5){ const gd = sm.filter(u=>u.ne>=1).length; if(gd/sm.length<0.5) tips.push(`Solo il ${pc(gd/sm.length)} delle tue smoke aveva un nemico entro ~15 m dal punto di scoppio (metrica Leetify): molte vengono lanciate senza che nessuno stia arrivando. Tienile per l'execute o per tagliare un push che stai sentendo.`); }
   const spots = utilSpots(L);
-  const spotHtml = spots.map(s=>{
+  const spotHtml = spots.map((s,i)=>{
     const adv = throwAdvice(s);
-    return `<div class="iss ok" style="--ic:#e8c53a"><h4>${mapName(s.map)} · ${s.side} · in ${esc(s.pl)}${s.kp!=='?'&&s.kp!==s.pl?` (di solito ti uccide chi è a ${esc(s.kp)})`:''} <span class="sub" style="display:inline">(${s.n} ${s.n===1?'morte':'morti'} con utility in tasca${s.fl?`, ${s.fl} con flash`:''}${s.sm?`, ${s.sm} con smoke`:''})</span></h4>${adv.map(a=>`<p><b>${esc(a.k)}:</b> ${esc(a.t)}</p>`).join('')}</div>`;
+    const tags = `<span class="tg">${s.n} ${s.n===1?'morte':'morti'}</span>${s.fl?`<span class="tg warm">flash ${s.fl}</span>`:''}${s.sm?`<span class="tg">smoke ${s.sm}</span>`:''}`;
+    return `<details class="acc"${i===0?' open':''}><summary><span class="side ${s.side}">${s.side}</span><span class="at">${esc(mapName(s.map))} · in ${esc(s.pl)}</span>${s.kp!=='?'&&s.kp!==s.pl?`<span class="am">di solito ti uccide chi è a ${esc(s.kp)}</span>`:''}<span class="ar">${tags}</span></summary>
+      <div class="ab">${adv.map(a=>`<div class="arow"><b>${esc(a.k)}</b><p>${esc(a.t)}</p></div>`).join('')}</div></details>`;
   }).join('');
   const flN = fl.length;
   const kpis = [
@@ -1553,8 +1649,8 @@ function utilCoach(ms, L){
     ${!flN?`<p class="sub" style="margin-top:8px">I dettagli per ogni flash (nemici accecati, kill dopo la flash) e per ogni smoke si registrano solo per le demo nuove.</p>`:''}
     <div class="sbox"><h3 style="margin:0 0 2px">Dove muori con utility in tasca</h3>
     <div class="sub">Raggruppo le morti per mappa, lato e posizione in cui sei morto. Le indicazioni sono principi ricavati da distanza, arma e numero di avversari; il punto esatto di lancio (lineup) va imparato con una mappa di pratica.</div>
-    ${spotHtml || '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}</div>
-    <div class="sbox"><h3 style="margin:0 0 2px">Tecnica di lancio</h3>
+    ${spotHtml ? `<div class="accbar"><button type="button" class="lnk" data-acc="open">Apri tutto</button> · <button type="button" class="lnk" data-acc="close">Chiudi tutto</button></div><div class="accs">${spotHtml}</div>` : '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}</div>
+    <details class="acc fold2"><summary><span class="at">Tecnica di lancio</span><span class="am">come lanciare flash e smoke, allenamento</span></summary><div class="ab">
     <ul style="margin:6px 0 0;padding-left:20px">
       <li style="margin:4px 0"><b>Tasto sinistro</b> = lancio lungo, <b>destro</b> = lancio corto basso, <b>entrambi</b> = distanza media. Correre in avanti aumenta la distanza, indietro la riduce; da fermo il lancio è più ripetibile.</li>
       <li style="margin:4px 0"><b>Jump throw</b>: tieni premuto il tasto sinistro, salta e rilascia mentre sali. Il bind a tasto unico non funziona più sui server ufficiali, si fa a mano.</li>
@@ -1563,7 +1659,7 @@ function utilCoach(ms, L){
       <li style="margin:4px 0"><b>Priorità di acquisto</b> a soldi limitati: smoke, una flash, molotov, seconda flash, HE.</li>
       <li style="margin:4px 0"><b>Allenamento</b>: in una mappa offline con <code>sv_cheats 1</code> usa <code>cl_grenadepreview 1</code> (traiettoria) e <code>sv_rethrow_last_grenade</code> (ripeti l'ultimo lancio). Ripeti ogni lineup 10 volte.</li>
     </ul>
-    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div></div>`;
+    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div></details></div>`;
 }
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;
@@ -1676,20 +1772,22 @@ function viewErrori(ms){
   const aim = aimSection(ms);
   const note = missNote + (L.length<20 ? `<div class="note">Analizzate ${L.length} morti di ${ms.length} ${ms.length===1?'partita':'partite'}: sono indizi, non verdetti. Il quadro diventa solido dopo qualche partita in più.</div>` : '');
   return `${note}
-  <div class="card"><h2>Cosa ti costa più round</h2><div class="sub">Su ${L.length} morti analizzate (${cnt.scontro||0} in pieno scontro, ${pc((cnt.scontro||0)/L.length)}: kill appena fatta o compagno caduto vicino, non conteggiate come errori di reazione). Una morte può avere più cause. I segnali sono regole sui dati della demo: valuta sempre se nel contesto del round avevano senso.</div>
-    ${top.length?`<ol style="margin:6px 0 0;padding-left:20px">${top.map(k=>`<li style="margin:4px 0"><b>${FOCUS[k]}</b> (${ECAT[k]}: ${cnt[k]} morti su ${L.length}, ${pc(cnt[k]/L.length)}). <span class="sub">Come allenarlo: ${esc(DRILL[k]||'')}</span></li>`).join('')}</ol>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
-    <div class="chips" style="margin-top:14px"><button data-ecat="all" aria-pressed="${state.eCat==='all'}">Tutte (${L.length})</button>${order.map(k=>`<button data-ecat="${k}" aria-pressed="${state.eCat===k}">${ECAT[k]} (${cnt[k]})</button>`).join('')}</div></div>
+  <div class="card"><h2>Cosa ti costa più round</h2><div class="sub">Su ${L.length} morti analizzate. Una morte può avere più cause.</div>
+    ${top.length?`<div class="causes">${top.map((k,i)=>`<div class="cause"><div class="ch"><b>${i+1} · ${ECAT[k]}</b><span class="cv">${pc(cnt[k]/L.length)}</span></div><div class="bar"><i style="width:${Math.min(100,cnt[k]/L.length*100)}%;background:var(--warn)"></i></div><div class="sub">${cnt[k]} morti su ${L.length}. ${esc(FOCUS[k])}.${i?`<br>${esc(DRILL[k]||'')}`:''}</div></div>`).join('')}</div>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
+    <details class="mini"><summary>Come leggere questi dati</summary><div class="sub">${cnt.scontro||0} morti su ${L.length} (${pc((cnt.scontro||0)/L.length)}) sono avvenute in pieno scontro: kill appena fatta o compagno caduto vicino, non conteggiate come errori di reazione. I segnali sono regole sui dati della demo: valuta sempre se nel contesto del round avevano senso.</div></details>
+    <div class="fbar2"><label>Causa <select id="eCatSel"><option value="all">Tutte (${L.length})</option>${order.map(k=>`<option value="${k}" ${state.eCat===k?'selected':''}>${ECAT[k]} (${cnt[k]})</option>`).join('')}</select></label>
+      ${state.ePlace?`<button type="button" class="fchip" data-eplace="${esc(state.ePlace)}" title="Togli il filtro">Punto: ${esc(state.ePlace.split('|')[1]||'?')} ✕</button>`:''}</div></div>
   ${trendCard(ms, L, top)}
   ${utilCoach(ms, L)}
   ${aim}
-  ${posSummary(L)}
-  ${workshopCard(ms,cnt,L)}
+  ${foldCard(posSummary(L), true)}
+  ${foldCard(workshopCard(ms,cnt,L))}
   <div class="grid g2">${timingBars(ms)}${placeTable(L)}</div>
   <h2 style="margin:22px 0 4px">Le singole morti</h2>
   <div class="sub" style="margin-bottom:8px">Il dettaglio di ogni morte (mappa, fotogrammi, cosa fare) è dentro la singola partita, nel tab "Errori". Clicca una riga per aprirla direttamente.</div>
   ${vis.length?`<div class="card"><div class="scroll"><table class="timeline"><thead><tr><th>Partita</th><th>Mappa</th><th>Round</th><th>Lato</th><th>Dove</th><th>Cause</th></tr></thead><tbody>${vis.slice(0,state.eShown).map(it=>`<tr class="click" data-gomatch="${it.m.id}" data-gofocus="d-${it.m.id}-${it.e.r}-${it.e.tick}"><td>#${idxOf(it.m)}</td><td>${mapName(it.m.map)}</td><td>${it.e.r}</td><td><span class="side ${it.e.side}">${it.e.side}</span></td><td style="text-align:left">${esc(it.e.c.pl||'?')}</td><td style="text-align:left;white-space:normal">${it.rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).join(', ')||'nessuna evidente'}</td></tr>`).join('')}</tbody></table></div></div>`:'<div class="empty">Nessuna morte con questo filtro.</div>'}
   ${vis.length>state.eShown?`<p style="text-align:center"><button class="btn" data-emore="1">Mostra altre (${vis.length-state.eShown})</button></p>`:''}
-  ${sourcesCard()}`;
+  ${foldCard(sourcesCard())}`;
 }
 </script>
 <script>
@@ -5904,10 +6002,12 @@ document.addEventListener('click', e => {
   if(t.dataset.copy){ copyText(t.dataset.copy).then(ok=>{ const o=t.textContent; t.textContent = ok?'Copiato!':'Non copiato: selezionalo a mano'; setTimeout(()=>{t.textContent=o},1600); }); return; }
   if(t.dataset.lback){ state.learn.map = null; render(); return window.scrollTo(0,0); }
   if(t.dataset.tab){ state.learn.on = false; return setTab(t.dataset.tab); }
+  if(t.dataset.clr){ if(t.dataset.clr==='all'){ state.fMap='all'; state.fKind='all'; state.fSide='all'; state.fRes='all'; } else state[t.dataset.clr]='all'; state.sel=null; return render(); }
   if(t.closest('#fSide')){ state.fSide = t.dataset.v; return render(); }
   if(t.closest('#fRes')){ state.fRes = t.dataset.v; return render(); }
   if(t.closest('#mode')){ state.mode = t.dataset.v; return render(); }
   if(t.id==='btnImp'||t.id==='btnImp2') return $('#imp').click();
+  if(t.dataset.acc){ document.querySelectorAll('.accs details').forEach(d=>{ d.open = t.dataset.acc==='open'; }); return; }
   if(t.dataset.ecat!==undefined){ state.eCat = t.dataset.ecat; state.ePlace = null; state.eShown = 10; return render(); }
   if(t.dataset.eplace!==undefined){ state.ePlace = state.ePlace===t.dataset.eplace ? null : t.dataset.eplace; state.eShown = 10; return render(); }
   if(t.dataset.emore){ state.eShown += 10; return render(); }
@@ -5935,6 +6035,7 @@ document.addEventListener('change', e => {
   const id = e.target.id;
   if(id==='fMap' || id==='hMap'){ state.fMap = e.target.value; state.sel=null; render(); }
   if(id==='fKind' || id==='hKind'){ state.fKind = e.target.value; state.sel=null; render(); }
+  if(id==='eCatSel'){ state.eCat = e.target.value; state.ePlace = null; state.eShown = 10; render(); }
   if(id==='hRes'){ state.fRes = e.target.value; render(); }
   if(id==='hFrom'){ state.hFrom = e.target.value; render(); }
   if(id==='hTo'){ state.hTo = e.target.value; render(); }
@@ -5989,6 +6090,19 @@ function alert_(msg){
     }catch(e){ b.textContent = 'Errore'; }
     setTimeout(() => { b.textContent = label; b.disabled = false; }, 3000);
   });
+})();
+
+// header pop-overs: filters and "more" menu (close on outside click, Esc, or choosing an item)
+(() => {
+  const fp = () => document.getElementById('fpop'), mp = () => document.getElementById('more'), fb = () => document.getElementById('fBtn');
+  const closeAll = () => { fp().hidden = true; mp().hidden = true; fb().setAttribute('aria-expanded','false'); };
+  document.addEventListener('click', e => {
+    if(e.target.closest('#fBtn')){ const o = fp().hidden; closeAll(); fp().hidden = !o; fb().setAttribute('aria-expanded', String(o)); return; }
+    if(e.target.closest('#moreBtn')){ const o = mp().hidden; closeAll(); mp().hidden = !o; return; }
+    if(e.target.closest('#more button')){ closeAll(); return; }
+    if(!e.target.closest('#fpop')) closeAll();
+  }, true);   // capture: runs before the render() that replaces the buttons
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeAll(); });
 })();
 </script>
 <script>

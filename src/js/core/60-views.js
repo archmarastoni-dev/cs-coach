@@ -2,23 +2,34 @@
 const TABS = LITE ? [['panoramica','Panoramica']] : [['panoramica','Panoramica'],['partite','Partite'],['mappe','Mappe'],['utility','Utility e smoke'],['errori','Errori e fix'],['armi','Armi e mira'],['coach','Coach']];
 
 function renderChrome(){
-  if(LITE){ $('#who').textContent = (DATA.title||'')+' · '+state.matches.length+' partite recenti'; $('#filters').innerHTML=''; $('#tabs').style.display='none'; return; }
+  if(LITE){ $('#strip').innerHTML = `<span class="who">${DATA.title||''} · ${state.matches.length} partite recenti</span>`; $('#filters').innerHTML=''; $('#tabs').style.display='none'; document.querySelector('.hact').style.display='none'; return; }
   $('#tabs').style.display = state.learn.on ? 'none' : '';
-  $('#who').textContent = (state.matches[0] && me(state.matches[0]) ? me(state.matches[0]).name : '') + ' · ' + state.matches.length + (state.matches.length===1?' partita':' partite');
+  const who = (state.matches[0] && me(state.matches[0]) ? me(state.matches[0]).name : '') + ' · ' + state.matches.length + (state.matches.length===1?' partita':' partite');
   const maps = [...new Set(state.matches.map(m=>m.map))], kinds = [...new Set(state.matches.map(kindOf))];
   $('#filters').innerHTML = `
-    <label>Mappa <select id="fMap"><option value="all">Tutte</option>${maps.map(m=>`<option value="${m}" ${state.fMap===m?'selected':''}>${mapName(m)}</option>`).join('')}</select></label>
-    ${kinds.length>1?`<label>Tipo <select id="fKind"><option value="all">Tutti</option>${kinds.map(k=>`<option value="${k}" ${state.fKind===k?'selected':''}>${k}</option>`).join('')}</select></label>`:''}
-    <label>Lato <span class="seg" id="fSide">${['all','CT','T'].map(s=>`<button data-v="${s}" aria-pressed="${state.fSide===s}">${s==='all'?'Tutti':s}</button>`).join('')}</span></label>
-    <label>Esito <span class="seg" id="fRes">${[['all','Tutti'],['W','Vinte'],['L','Perse']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.fRes===s}">${t}</button>`).join('')}</span></label>
-    <label>Dati <span class="seg" id="mode">${[['base','Base'],['adv','Avanzati']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.mode===s}">${t}</button>`).join('')}</span></label>
-    <button class="btn" id="btnImp">Importa dati</button>
-    <button class="btn lrn-btn" data-learn="${state.learn.on?0:1}">${state.learn.on?'← Torna all\'analisi':'📚 E-learning'}</button>`;
+    <div class="fg"><span class="fl">Mappa</span><select id="fMap"><option value="all">Tutte</option>${maps.map(m=>`<option value="${m}" ${state.fMap===m?'selected':''}>${mapName(m)}</option>`).join('')}</select></div>
+    ${kinds.length>1?`<div class="fg"><span class="fl">Tipo</span><select id="fKind"><option value="all">Tutti</option>${kinds.map(k=>`<option value="${k}" ${state.fKind===k?'selected':''}>${k}</option>`).join('')}</select></div>`:''}
+    <div class="fg"><span class="fl">Lato</span><span class="seg" id="fSide">${['all','CT','T'].map(s=>`<button data-v="${s}" aria-pressed="${state.fSide===s}">${s==='all'?'Tutti':s}</button>`).join('')}</span></div>
+    <div class="fg"><span class="fl">Esito</span><span class="seg" id="fRes">${[['all','Tutti'],['W','Vinte'],['L','Perse']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.fRes===s}">${t}</button>`).join('')}</span></div>
+    <div class="fg"><span class="fl">Dati</span><span class="seg" id="mode">${[['base','Base'],['adv','Avanzati']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.mode===s}">${t}</button>`).join('')}</span></div>`;
+  const act = [['fMap', state.fMap!=='all' ? 'Mappa: '+mapName(state.fMap) : ''], ['fKind', state.fKind!=='all' ? 'Tipo: '+state.fKind : ''], ['fSide', state.fSide!=='all' ? 'Lato: '+state.fSide : ''], ['fRes', state.fRes!=='all' ? (state.fRes==='W'?'Solo vinte':'Solo perse') : '']].filter(x=>x[1]);
+  $('#strip').innerHTML = `<span class="who">${who}</span>${act.map(([k,t])=>`<button type="button" class="fchip" data-clr="${k}" title="Togli questo filtro">${t} ✕</button>`).join('')}`;
+  $('#fDot').hidden = !act.length; $('#fBtn').firstChild.textContent = act.length ? 'Filtri · '+act.length : 'Filtri';
+  $('#moreItems').innerHTML = `<button type="button" class="mitem" id="btnImp">Importa dati…</button><button type="button" class="mitem" data-learn="${state.learn.on?0:1}">${state.learn.on?'← Torna all\'analisi':'📚 E-learning'}</button>`;
   $('#tabs').innerHTML = TABS.map(([k,t])=>`<button role="tab" data-tab="${k}" aria-selected="${state.tab===k}">${t}</button>`).join('');
 }
 
-function kpi(lab, val, ref, cls=''){
-  return `<div class="card kpi"><div class="lab">${lab}</div><div class="val ${cls}">${val}</div><div class="ref">${ref||'&nbsp;'}</div></div>`;
+function kpi(lab, val, ref, cls='', trend=''){
+  return `<div class="card kpi"><div class="lab">${lab}</div><div class="val ${cls}">${val}</div><div class="ref">${trend}${ref||'&nbsp;'}</div></div>`;
+}
+/* Trend arrow on a KPI card: the last 5 matches against the ones before them (needs at least 3 older matches). */
+function trendOf(ms, side, fn, dec, unit=''){
+  if(ms.length < 8) return '';
+  const a = fn(agg(ms.slice(-5), side)), b = fn(agg(ms.slice(0,-5), side)), d = a - b;
+  if(!isFinite(d)) return '';
+  const q = Math.pow(10, -dec) / 2, flat = Math.abs(d) < q;
+  const cls = flat ? 'flat' : d > 0 ? 'up' : 'down';
+  return `<span class="trend ${cls}" ${tipAttr('Ultime 5 partite: '+a.toFixed(dec)+unit+' · prima: '+b.toFixed(dec)+unit)}>${flat?'▬':d>0?'▲':'▼'} ${Math.abs(d).toFixed(dec)}${unit}</span>`;
 }
 
 function trendSVG(ms, side, key){
@@ -34,12 +45,25 @@ function trendSVG(ms, side, key){
   let g=''; for(let i=0;i<=3;i++){ const v=lo+(hi-lo)*i/3; g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end" fill="var(--ink-3)" font-size="11">${v.toFixed(dec)}</text>`; }
   const step = Math.max(1, Math.ceil(pts.length/12));
   const path = pts.map((p,i)=>`${i?'L':'M'}${X(i)} ${Y(p.v)}`).join('');
-  const dots = pts.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="6" fill="${p.m.result==='W'?'var(--good)':'var(--bad)'}" stroke="var(--surface)" stroke-width="2" ${tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+p.m.score.us+'-'+p.m.score.them+' · '+lab+' '+p.v.toFixed(dec))}/>
-    ${i%step===0||i===pts.length-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11">#${idxOf(p.m)}</text>`:''}`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Andamento ${lab}">${g}
-    <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--accent)" stroke-dasharray="4 4" opacity=".7"/>
-    <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>${dots}</svg>
-    <div class="legend"><span><span class="dot" style="background:var(--good)"></span> Vinta</span><span><span class="dot" style="background:var(--bad)"></span> Persa</span><span>Linea tratteggiata: media ${avg.toFixed(dec)}</span></div>`;
+  // moving average of the last MA_N matches: a line that moves up when you improve and down when you get worse
+  const MA_N = 15, N = pts.length >= MA_N + 2 ? MA_N : (pts.length >= 8 ? Math.max(4, Math.floor(pts.length/2)) : 0);
+  let maSvg = '', chip = '';
+  if(N){
+    const ma = pts.map((p,i)=> i < N-1 ? null : vs.slice(i-N+1, i+1).reduce((a,b)=>a+b,0)/N);
+    const ix = ma.map((v,i)=>v==null?null:i).filter(i=>i!=null), i0 = ix[0], i1 = ix[ix.length-1];
+    maSvg = `<path d="${ix.map((i,j)=>`${j?'L':'M'}${X(i)} ${Y(ma[i])}`).join('')}" fill="none" stroke="var(--warn)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${X(i0)}" cy="${Y(ma[i0])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/><text x="${X(i0)}" y="${Y(ma[i0])-12}" text-anchor="middle" fill="var(--warn)" font-size="12" font-weight="700">${ma[i0].toFixed(dec)}</text>
+      <circle cx="${X(i1)}" cy="${Y(ma[i1])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/><text x="${X(i1)-8}" y="${Y(ma[i1])+22}" text-anchor="end" fill="var(--warn)" font-size="12" font-weight="700">oggi ${ma[i1].toFixed(dec)}</text>`;
+    const d = ma[i1] - ma[i0], flat = Math.abs(d) < Math.pow(10,-dec)/2;
+    chip = `<div class="tchip"><span class="chip ${flat?'flat':d>0?'up':'down'}">${flat?'▬ stabile':(d>0?'▲ ':'▼ ')+Math.abs(d).toFixed(dec)} dalla partita #${idxOf(pts[i0].m)}</span></div>`;
+  }
+  const dots = pts.map((p,i)=>{ const win = p.m.result==='W', tip = tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+p.m.score.us+'-'+p.m.score.them+' · '+lab+' '+p.v.toFixed(dec));
+    return (win ? `<circle cx="${X(i)}" cy="${Y(p.v)}" r="5.5" fill="var(--good)" ${tip}/>` : `<circle cx="${X(i)}" cy="${Y(p.v)}" r="4.5" fill="var(--surface)" stroke="var(--bad)" stroke-width="2.2" ${tip}/>`)
+    + (i%step===0||i===pts.length-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11.5">#${idxOf(p.m)}</text>`:''); }).join('');
+  return `${chip}<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Andamento ${lab}">${g}
+    <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--ink-3)" stroke-dasharray="5 4"/>
+    <path d="${path}" fill="none" stroke="var(--line)" stroke-width="1.5"/>${dots}${maSvg}</svg>
+    <div class="legend"><span><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="var(--good)"/></svg> Vinta</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--bad)" stroke-width="2"/></svg> Persa</span>${N?`<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--warn)" stroke-width="3"/></svg> Media delle ultime ${N}</span>`:''}<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--ink-3)" stroke-dasharray="4 3"/></svg> Media totale ${avg.toFixed(dec)}</span></div>`;
 }
 
 function profileCard(){
@@ -55,13 +79,13 @@ function viewPanoramica(ms){
   const side = state.fSide, A = agg(ms, side), U = utilAgg(ms, side);
   const adv = state.mode==='adv';
   const k = [
-    kpi('Rating (stima)', f1(A.rating,2), 'rif. '+REF.rating.toFixed(2), cmpClass(A.rating,REF.rating)),
-    kpi('K/D', f1(A.kd,2), `${A.k} kill · ${A.d} morti`, cmpClass(A.kd,REF.kd)),
-    kpi('ADR', f1(A.adr,0), 'rif. '+REF.adr, cmpClass(A.adr,REF.adr)),
-    kpi('KAST', pc(A.kastP), 'rif. '+pc(REF.kastP), cmpClass(A.kastP,REF.kastP)),
-    kpi('HS %', pc(A.hsP), 'rif. '+pc(REF.hsP), cmpClass(A.hsP,REF.hsP)),
+    kpi('Rating (stima)', f1(A.rating,2), 'rif. '+REF.rating.toFixed(2), cmpClass(A.rating,REF.rating), trendOf(ms,side,a=>a.rating,2)),
+    kpi('K/D', f1(A.kd,2), `${A.k} kill · ${A.d} morti`, cmpClass(A.kd,REF.kd), trendOf(ms,side,a=>a.kd,2)),
+    kpi('ADR', f1(A.adr,0), 'rif. '+REF.adr, cmpClass(A.adr,REF.adr), trendOf(ms,side,a=>a.adr,0)),
+    kpi('KAST', pc(A.kastP), 'rif. '+pc(REF.kastP), cmpClass(A.kastP,REF.kastP), trendOf(ms,side,a=>a.kastP*100,0,' pt')),
+    kpi('HS %', pc(A.hsP), 'rif. '+pc(REF.hsP), cmpClass(A.hsP,REF.hsP), trendOf(ms,side,a=>a.hsP*100,0,' pt')),
     kpi('Partite vinte', `${A.mw}/${A.n}`, side==='all'?'':'(esito partita)'),
-    kpi('Round vinti', pc(A.rwP), `${A.rw} su ${A.R}`, cmpClass(A.rwP,REF.rwP))
+    kpi('Round vinti', pc(A.rwP), `${A.rw} su ${A.R}`, cmpClass(A.rwP,REF.rwP), trendOf(ms,side,a=>a.rwP*100,0,' pt'))
   ];
   if(adv) k.push(
     kpi('Duelli d\'apertura', pc(A.okP), `${A.ok} vinti · ${A.od} persi`, cmpClass(A.okP,REF.okP)),
@@ -95,8 +119,8 @@ function viewPanoramica(ms){
       ${bk.map((b,i)=>`<div class="hrow"><span>${b[0]}${b[1]>=999?'+':'-'+b[1]} s</span><div><div class="bar" ${tipAttr(kc[i]+' kill')}><i style="width:${kc[i]/mx*100}%;background:var(--good)"></i></div><div class="bar" style="margin-top:3px" ${tipAttr(dc[i]+' morti')}><i style="width:${dc[i]/mx*100}%;background:var(--bad)"></i></div></div><span class="n">${kc[i]} / ${dc[i]}</span></div>`).join('')}</div>`;
   }
   return `${profileCard()}<div class="grid kpis">${k.join('')}</div>${liteNote()}
-  <div class="grid g2">
-    <div class="card"><h2>Andamento partita per partita</h2><div class="sub">Ogni punto è una partita. Passa sopra per i dettagli.</div>
+  <div class="grid g21">
+    <div class="card"><h2>Andamento partita per partita</h2><div class="sub">Ogni punto è una partita. La linea oro è la media delle ultime 15: se scende, stai peggiorando.</div>
       <div class="chips" id="trendChips">${[['rating','Rating'],['adr','ADR'],['kd','K/D'],['kastP','KAST'],['hsP','HS %'],['okP','Duelli apertura']].map(([k2,t])=>`<button data-trend="${k2}" aria-pressed="${state.trend===k2}">${t}</button>`).join('')}</div>
       ${trendSVG(ms, side, state.trend)}</div>
     <div class="card"><h2>CT contro T</h2><div class="sub">Il lato è sempre quello che giocavi in quel round.</div>

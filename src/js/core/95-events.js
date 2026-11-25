@@ -12,10 +12,12 @@ document.addEventListener('click', e => {
   if(t.dataset.copy){ copyText(t.dataset.copy).then(ok=>{ const o=t.textContent; t.textContent = ok?'Copiato!':'Non copiato: selezionalo a mano'; setTimeout(()=>{t.textContent=o},1600); }); return; }
   if(t.dataset.lback){ state.learn.map = null; render(); return window.scrollTo(0,0); }
   if(t.dataset.tab){ state.learn.on = false; return setTab(t.dataset.tab); }
+  if(t.dataset.clr){ if(t.dataset.clr==='all'){ state.fMap='all'; state.fKind='all'; state.fSide='all'; state.fRes='all'; } else state[t.dataset.clr]='all'; state.sel=null; return render(); }
   if(t.closest('#fSide')){ state.fSide = t.dataset.v; return render(); }
   if(t.closest('#fRes')){ state.fRes = t.dataset.v; return render(); }
   if(t.closest('#mode')){ state.mode = t.dataset.v; return render(); }
   if(t.id==='btnImp'||t.id==='btnImp2') return $('#imp').click();
+  if(t.dataset.acc){ document.querySelectorAll('.accs details').forEach(d=>{ d.open = t.dataset.acc==='open'; }); return; }
   if(t.dataset.ecat!==undefined){ state.eCat = t.dataset.ecat; state.ePlace = null; state.eShown = 10; return render(); }
   if(t.dataset.eplace!==undefined){ state.ePlace = state.ePlace===t.dataset.eplace ? null : t.dataset.eplace; state.eShown = 10; return render(); }
   if(t.dataset.emore){ state.eShown += 10; return render(); }
@@ -43,6 +45,7 @@ document.addEventListener('change', e => {
   const id = e.target.id;
   if(id==='fMap' || id==='hMap'){ state.fMap = e.target.value; state.sel=null; render(); }
   if(id==='fKind' || id==='hKind'){ state.fKind = e.target.value; state.sel=null; render(); }
+  if(id==='eCatSel'){ state.eCat = e.target.value; state.ePlace = null; state.eShown = 10; render(); }
   if(id==='hRes'){ state.fRes = e.target.value; render(); }
   if(id==='hFrom'){ state.hFrom = e.target.value; render(); }
   if(id==='hTo'){ state.hTo = e.target.value; render(); }
@@ -97,4 +100,18 @@ function alert_(msg){
     }catch(e){ b.textContent = 'Errore'; }
     setTimeout(() => { b.textContent = label; b.disabled = false; }, 3000);
   });
+})();
+
+
+// header pop-overs: filters and "more" menu (close on outside click, Esc, or choosing an item)
+(() => {
+  const fp = () => document.getElementById('fpop'), mp = () => document.getElementById('more'), fb = () => document.getElementById('fBtn');
+  const closeAll = () => { fp().hidden = true; mp().hidden = true; fb().setAttribute('aria-expanded','false'); };
+  document.addEventListener('click', e => {
+    if(e.target.closest('#fBtn')){ const o = fp().hidden; closeAll(); fp().hidden = !o; fb().setAttribute('aria-expanded', String(o)); return; }
+    if(e.target.closest('#moreBtn')){ const o = mp().hidden; closeAll(); mp().hidden = !o; return; }
+    if(e.target.closest('#more button')){ closeAll(); return; }
+    if(!e.target.closest('#fpop')) closeAll();
+  }, true);   // capture: runs before the render() that replaces the buttons
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeAll(); });
 })();

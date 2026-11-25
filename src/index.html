@@ -17,12 +17,20 @@
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div class="top-row">
-    <div class="brand"><button type="button" class="btn navbtn" id="navBack" title="Indietro" aria-label="Indietro">←</button><button type="button" class="btn navbtn" id="navFwd" title="Avanti" aria-label="Avanti">→</button><h1>CS Coach</h1><span id="who"></span><button type="button" class="btn" id="scanBtn" hidden title="Cerca e leggi subito le demo nuove">⟳ Cerca demo</button></div>
-    <div class="filters" id="filters"></div>
+  <div class="hdr">
+    <div class="navb"><button type="button" class="btn navbtn" id="navBack" title="Indietro" aria-label="Indietro">←</button><button type="button" class="btn navbtn" id="navFwd" title="Avanti" aria-label="Avanti">→</button></div>
+    <h1>CS Coach</h1>
+    <nav class="tabs" id="tabs" role="tablist"></nav>
+    <div class="hact">
+      <button type="button" class="btn" id="fBtn" aria-expanded="false" aria-controls="fpop">Filtri<i class="fdot" id="fDot" hidden></i> ▾</button>
+      <button type="button" class="btn pri" id="scanBtn" hidden title="Cerca e leggi subito le demo nuove">⟳ Cerca demo</button>
+      <button type="button" class="btn" id="moreBtn" aria-label="Altro" title="Altro">⋯</button>
+    </div>
   </div>
-  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div class="pop" id="fpop" hidden><div class="pophead"><b>Filtri</b><button type="button" class="lnk" data-clr="all">Azzera</button></div><div id="filters"></div></div>
+  <div class="pop pop-sm" id="more" hidden><div id="moreItems"></div></div>
 </div></header>
+<div class="wrap strip" id="strip"></div>
 <div class="wrap"><main id="main"></main></div>
 <div id="tip"></div>
 <input type="file" id="imp" accept=".json,application/json" hidden>
