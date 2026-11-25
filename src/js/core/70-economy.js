@@ -276,15 +276,15 @@ function viewArmi(ms){
     for(const e of m.me.kills) if(sideOk(side,e)){ dk[bins.findIndex(b=>e.dist>=b[0]&&e.dist<b[1])]++; for(const k of Object.keys(fl)) if(e[k]) fl[k]++; }
     for(const e of m.me.deaths) if(sideOk(side,e)&&!e.teamkill) dd[bins.findIndex(b=>e.dist>=b[0]&&e.dist<b[1])]++;
   }
-  const wr = Object.entries(W).filter(([w,o])=>w!=='knife').sort((a,b)=>b[1].kills*1000+b[1].shots - (a[1].kills*1000+a[1].shots));
-  const tb = wr.map(([w,o]) => `<tr><td>${wname(w)}</td><td>${o.shots}</td><td>${o.hits}</td><td>${pc(o.hits/Math.max(1,o.shots))}</td><td>${pc(o.hs_hits/Math.max(1,o.hits))}</td><td>${f1(o.dmg/Math.max(1,o.hits),0)}</td><td>${o.kills}</td></tr>`).join('');
+  const wr = Object.entries(W).filter(([w,o])=>w!=='knife' && (o.shots>0 || o.kills>0)).sort((a,b)=>b[1].kills*1000+b[1].shots - (a[1].kills*1000+a[1].shots));
+  const tb = wr.map(([w,o]) => `<tr><td>${wname(w)}</td><td>${o.shots}</td><td>${o.hits}</td><td>${o.shots?pc(o.hits/o.shots):'–'}</td><td>${pc(o.hs_hits/Math.max(1,o.hits))}</td><td>${f1(o.dmg/Math.max(1,o.hits),0)}</td><td>${o.kills}</td></tr>`).join('');
   const tot = sum(Object.values(HZ));
   const hz = Object.entries(HZ).sort((a,b)=>b[1]-a[1]).map(([z,n])=>`<div class="hrow"><span>${z}</span><div class="bar"><i style="width:${n/Math.max(1,tot)*100}%"></i></div><span class="n">${pc(n/Math.max(1,tot))} · ${n}</span></div>`).join('');
   const mx = Math.max(1,...dk,...dd);
   const dist = bins.map((b,i)=>`<div class="hrow"><span>${b[0]}${b[1]>=999?'+':'-'+b[1]} m</span><div><div class="bar" ${tipAttr(dk[i]+' kill')}><i style="width:${dk[i]/mx*100}%;background:var(--good)"></i></div><div class="bar" style="margin-top:3px" ${tipAttr(dd[i]+' morti')}><i style="width:${dd[i]/mx*100}%;background:var(--bad)"></i></div></div><span class="n">${dk[i]} / ${dd[i]}</span></div>`).join('');
-  return `<div class="grid g2">
-    <div class="card"><h2>Armi</h2><div class="sub">Colpi sparati, colpi a segno e kill per arma. I colpi a segno non contano granate né coltello.</div>
+  return `<div class="card"><h2>Armi</h2><div class="sub">Colpi sparati, colpi a segno e kill per arma. I colpi a segno non contano granate né coltello.</div>
       <div class="scroll"><table><thead><tr><th>Arma</th><th>Colpi</th><th>A segno</th><th>Precisione</th><th>Testa</th><th>Danno/colpo</th><th>Kill</th></tr></thead><tbody>${tb}</tbody></table></div></div>
+  <div class="grid g3" style="margin-top:12px">
     <div class="card"><h2>Dove colpisci</h2><div class="sub">Distribuzione dei colpi a segno per zona del corpo.</div>${hz||'<div class="empty">Nessun dato</div>'}</div>
     <div class="card"><h2>Distanza dei duelli</h2><div class="sub">Verde = kill, rosso = morti, per distanza in metri.</div>${dist}</div>
     <div class="card"><h2>Tipi di kill</h2><div class="sub">Quante delle tue kill rientrano in queste categorie.</div>

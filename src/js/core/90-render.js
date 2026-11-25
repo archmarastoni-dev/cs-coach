@@ -58,6 +58,21 @@ window.addEventListener('popstate', e => {
   navButtons();
   window.scrollTo(0, s.y || 0);
 });
+/* tables: header stays visible while scrolling, with a short explanation under each column name */
+const TH_HINT = {'noi':'tipo di buy del tuo team (media soldi · tuoi)','loro':'tipo di buy degli avversari','cosa hai comprato':'armi, armatura e granate','tuoi $ a fine acquisti':'soldi che ti restano dopo gli acquisti','loss bonus':'bonus se perdi questo round','note':'segnali sulla spesa','esito':'round vinto o perso','dove':'zona della mappa in cui sei morto','cause':'perché sei morto (segnali dalla demo)','partita':'numero della partita','colpi':'proiettili sparati','a segno':'colpi che hanno preso un nemico','precisione':'a segno ÷ sparati','testa':'% dei colpi a segno alla testa','danno/colpo':'danno medio per colpo a segno','kill':'uccisioni','adr':'danno medio per round','kast':'% round con kill, assist, sopravvissuto o tradato','apertura':'% duelli d\'apertura vinti','v-p':'partite vinte – perse','rating':'stima del rating','round vinti ct':'% round vinti in difesa','round vinti t':'% round vinti in attacco','score':'punteggio finale','mvp':'volte miglior giocatore del round','hs%':'% kill con headshot','durata':'durata della partita','killer':'chi ti ha ucciso','arma · dist.':'arma e distanza in metri','tradata':'un compagno ti ha vendicato subito','segnali':'cosa non ha funzionato','tempo':'secondi dall\'inizio del round','punto':'nome della zona sulla mappa','morti':'volte che sei morto qui','tradate':'morti vendicate da un compagno / totale','nemici accecati':'avversari accecati almeno 1,1 s','compagni':'compagni accecati da te','tu':'secondi in cui ti sei accecato da solo','kill dopo la flash':'un accecato è stato ucciso subito dopo','giudizio':'valutazione della flash','tempo medio':'secondi medi dall\'inizio del round','dispersione':'quanto cambia il punto di lancio','k/a/d':'kill / assist / morti','danni':'danni inflitti','equip (noi / loro)':'valore equipaggiamento tuo team / avversari','stato':'esito dell\'analisi','lanci':'numero di lanci','zona':'zona della mappa','k/d':'kill ÷ morti','buy':'tipo di acquisto','tipo di buy (squadra)':'pistol, eco, force o full buy','a':'assist','k':'kill','d':'morti'};
+function setThTop(){ const h = document.querySelector('header.top'), m = document.querySelector('.mstick'); document.documentElement.style.setProperty('--th', ((h ? h.offsetHeight : 57) + (m ? m.offsetHeight : 0)) + 'px'); }
+window.addEventListener('resize', setThTop);
+function initTables(){
+  setThTop();
+  document.querySelectorAll('#main th').forEach(th => {
+    if(th.querySelector('.th-h')) return;
+    const k = th.textContent.trim().toLowerCase(), h = TH_HINT[k];
+    if(!h) return;
+    th.title = th.textContent.trim() + ': ' + h;
+    th.insertAdjacentHTML('beforeend', '<span class="th-h">' + h + '</span>');
+  });
+  document.querySelectorAll('#main .scroll').forEach(sc => { if(sc.scrollWidth > sc.clientWidth + 2) sc.classList.add('hs'); });
+}
 /* remembers the scroll position of each view, so going back from a map or from E-learning returns to the same spot */
 const SCROLL_MEM = {};
 function keepScroll(change){ SCROLL_MEM[JSON.stringify(navSnap())] = window.scrollY; change(); render(); window.scrollTo(0, SCROLL_MEM[JSON.stringify(navSnap())] || 0); }
@@ -78,6 +93,7 @@ function render(){
   $('#main').innerHTML = html;
   initZoom();
   initReplay();
+  initTables();
   navSync();
   const hh = document.querySelector('header.top'); if(hh) { document.documentElement.style.setProperty('--hh', hh.offsetHeight+'px'); const ms_ = document.querySelector('.mstick'); document.documentElement.style.setProperty('--sh', (hh.offsetHeight + (ms_ ? ms_.offsetHeight + 14 : 0) + 12)+'px'); }
   if(state.focusDeath){ const el = document.getElementById(state.focusDeath); state.focusDeath = null; if(el) el.scrollIntoView({block:'start'}); }

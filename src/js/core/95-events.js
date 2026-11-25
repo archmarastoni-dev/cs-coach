@@ -21,7 +21,7 @@ document.addEventListener('click', e => {
   if(t.closest('#mode')){ state.mode = t.dataset.v; return render(); }
   if(t.id==='btnImp'||t.id==='btnImp2') return $('#imp').click();
   if(t.dataset.acc){ document.querySelectorAll('.accs details').forEach(d=>{ d.open = t.dataset.acc==='open'; }); return; }
-  if(t.dataset.ecat!==undefined){ state.eCat = t.dataset.ecat; state.ePlace = null; state.eShown = 10; return render(); }
+  if(t.dataset.ecat!==undefined){ state.eCat = t.dataset.ecat; state.ePlace = null; state.eShown = 10; render(); if(t.dataset.escroll){ const l = document.getElementById('eList'); if(l) window.scrollTo(0, l.getBoundingClientRect().top + window.scrollY - (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hh'))||60) - 10); } return; }
   if(t.dataset.eplace!==undefined){ state.ePlace = state.ePlace===t.dataset.eplace ? null : t.dataset.eplace; state.eShown = 10; return render(); }
   if(t.dataset.emore){ state.eShown += 10; return render(); }
   if(t.dataset.gomatch){ state.tab='partite'; state.sel = t.dataset.gomatch; state.selView='err'; state.focusDeath = t.dataset.gofocus||null; return render(); }

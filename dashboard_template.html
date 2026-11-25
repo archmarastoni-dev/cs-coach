@@ -82,11 +82,11 @@ main{padding-top:18px;display:flex;flex-direction:column;gap:16px}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
-th{color:var(--ink-3);font-weight:500;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;background:var(--surface)}
+th{color:var(--ink-3);font-weight:500;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:var(--th,57px);z-index:6;background:var(--surface);vertical-align:bottom;box-shadow:0 1px 0 var(--line)}
 th.sortable{cursor:pointer} th.sortable:hover{color:var(--ink)}
 tr.click{cursor:pointer} tr.click:hover td{background:var(--surface-2)}
 tr.me td{background:color-mix(in srgb,var(--accent) 12%,transparent)}
-.scroll{overflow-x:auto}
+.scroll{overflow:visible}.scroll.hs{overflow-x:auto}
 .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600}
 .pill.W{background:color-mix(in srgb,var(--good) 20%,transparent);color:var(--good)}
 .pill.L{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad)}
@@ -262,6 +262,12 @@ nav.tabs::-webkit-scrollbar{display:none}
 .fs-cap span{color:var(--ink-2);font-size:12.5px}.fs-cap .fs-n{color:var(--ink-3);font-size:12px;margin-top:2px}
 .fs-nav{position:absolute;top:50%;transform:translateY(-50%);font-size:34px;background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:8px;padding:6px 16px;cursor:pointer}
 .fs-prev{left:14px}.fs-next{right:14px}
+th .th-h{display:block;font-size:10.5px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3);white-space:normal;max-width:170px;line-height:1.25;margin-top:2px;opacity:.9}
+th:first-child .th-h{max-width:none}
+th{white-space:normal}
+.btn.mini{padding:3px 9px;font-size:12px;margin-top:6px;color:var(--accent)}
+.grid.g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+table.timeline th:nth-child(n+5){text-align:left}
 </style>
 <style>
 /* E-learning, in-app image viewer and match-analysis styles */
@@ -1146,15 +1152,15 @@ function viewArmi(ms){
     for(const e of m.me.kills) if(sideOk(side,e)){ dk[bins.findIndex(b=>e.dist>=b[0]&&e.dist<b[1])]++; for(const k of Object.keys(fl)) if(e[k]) fl[k]++; }
     for(const e of m.me.deaths) if(sideOk(side,e)&&!e.teamkill) dd[bins.findIndex(b=>e.dist>=b[0]&&e.dist<b[1])]++;
   }
-  const wr = Object.entries(W).filter(([w,o])=>w!=='knife').sort((a,b)=>b[1].kills*1000+b[1].shots - (a[1].kills*1000+a[1].shots));
-  const tb = wr.map(([w,o]) => `<tr><td>${wname(w)}</td><td>${o.shots}</td><td>${o.hits}</td><td>${pc(o.hits/Math.max(1,o.shots))}</td><td>${pc(o.hs_hits/Math.max(1,o.hits))}</td><td>${f1(o.dmg/Math.max(1,o.hits),0)}</td><td>${o.kills}</td></tr>`).join('');
+  const wr = Object.entries(W).filter(([w,o])=>w!=='knife' && (o.shots>0 || o.kills>0)).sort((a,b)=>b[1].kills*1000+b[1].shots - (a[1].kills*1000+a[1].shots));
+  const tb = wr.map(([w,o]) => `<tr><td>${wname(w)}</td><td>${o.shots}</td><td>${o.hits}</td><td>${o.shots?pc(o.hits/o.shots):'–'}</td><td>${pc(o.hs_hits/Math.max(1,o.hits))}</td><td>${f1(o.dmg/Math.max(1,o.hits),0)}</td><td>${o.kills}</td></tr>`).join('');
   const tot = sum(Object.values(HZ));
   const hz = Object.entries(HZ).sort((a,b)=>b[1]-a[1]).map(([z,n])=>`<div class="hrow"><span>${z}</span><div class="bar"><i style="width:${n/Math.max(1,tot)*100}%"></i></div><span class="n">${pc(n/Math.max(1,tot))} · ${n}</span></div>`).join('');
   const mx = Math.max(1,...dk,...dd);
   const dist = bins.map((b,i)=>`<div class="hrow"><span>${b[0]}${b[1]>=999?'+':'-'+b[1]} m</span><div><div class="bar" ${tipAttr(dk[i]+' kill')}><i style="width:${dk[i]/mx*100}%;background:var(--good)"></i></div><div class="bar" style="margin-top:3px" ${tipAttr(dd[i]+' morti')}><i style="width:${dd[i]/mx*100}%;background:var(--bad)"></i></div></div><span class="n">${dk[i]} / ${dd[i]}</span></div>`).join('');
-  return `<div class="grid g2">
-    <div class="card"><h2>Armi</h2><div class="sub">Colpi sparati, colpi a segno e kill per arma. I colpi a segno non contano granate né coltello.</div>
+  return `<div class="card"><h2>Armi</h2><div class="sub">Colpi sparati, colpi a segno e kill per arma. I colpi a segno non contano granate né coltello.</div>
       <div class="scroll"><table><thead><tr><th>Arma</th><th>Colpi</th><th>A segno</th><th>Precisione</th><th>Testa</th><th>Danno/colpo</th><th>Kill</th></tr></thead><tbody>${tb}</tbody></table></div></div>
+  <div class="grid g3" style="margin-top:12px">
     <div class="card"><h2>Dove colpisci</h2><div class="sub">Distribuzione dei colpi a segno per zona del corpo.</div>${hz||'<div class="empty">Nessun dato</div>'}</div>
     <div class="card"><h2>Distanza dei duelli</h2><div class="sub">Verde = kill, rosso = morti, per distanza in metri.</div>${dist}</div>
     <div class="card"><h2>Tipi di kill</h2><div class="sub">Quante delle tue kill rientrano in queste categorie.</div>
@@ -1815,18 +1821,20 @@ function viewErrori(ms){
   const note = missNote + (L.length<20 ? `<div class="note">Analizzate ${L.length} morti di ${ms.length} ${ms.length===1?'partita':'partite'}: sono indizi, non verdetti. Il quadro diventa solido dopo qualche partita in più.</div>` : '');
   return `${note}
   <div class="card"><h2>Cosa ti costa più round</h2><div class="sub">Su ${L.length} morti analizzate. Una morte può avere più cause.</div>
-    ${top.length?`<div class="causes">${top.map((k,i)=>`<div class="cause"><div class="ch"><b>${i+1} · ${ECAT[k]}</b><span class="cv">${pc(cnt[k]/L.length)}</span></div><div class="bar"><i style="width:${Math.min(100,cnt[k]/L.length*100)}%;background:var(--warn)"></i></div><div class="sub">${cnt[k]} morti su ${L.length}. ${esc(FOCUS[k])}.${i?`<br>${esc(DRILL[k]||'')}`:''}</div></div>`).join('')}</div>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
+    ${top.length?`<div class="causes">${top.map((k,i)=>`<div class="cause"><div class="ch"><b>${i+1} · ${ECAT[k]}</b><span class="cv">${pc(cnt[k]/L.length)}</span></div><div class="bar"><i style="width:${Math.min(100,cnt[k]/L.length*100)}%;background:var(--warn)"></i></div><div class="sub">${cnt[k]} morti su ${L.length}. ${esc(FOCUS[k])}.${i?`<br>${esc(DRILL[k]||'')}`:''}</div><button type="button" class="btn mini" data-ecat="${k}" data-escroll="1">Vedi queste ${cnt[k]} morti ›</button></div>`).join('')}</div>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
     <details class="mini"><summary>Come leggere questi dati</summary><div class="sub">${cnt.scontro||0} morti su ${L.length} (${pc((cnt.scontro||0)/L.length)}) sono avvenute in pieno scontro: kill appena fatta o compagno caduto vicino, non conteggiate come errori di reazione. I segnali sono regole sui dati della demo: valuta sempre se nel contesto del round avevano senso.</div></details>
-    <div class="fbar2"><label>Causa <select id="eCatSel"><option value="all">Tutte (${L.length})</option>${order.map(k=>`<option value="${k}" ${state.eCat===k?'selected':''}>${ECAT[k]} (${cnt[k]})</option>`).join('')}</select></label>
-      ${state.ePlace?`<button type="button" class="fchip" data-eplace="${esc(state.ePlace)}" title="Togli il filtro">Punto: ${esc(state.ePlace.split('|')[1]||'?')} ✕</button>`:''}</div></div>
+  </div>
   ${trendCard(ms, L, top)}
   ${utilCoach(ms, L)}
   ${aim}
   ${foldCard(posSummary(L), true)}
   ${foldCard(workshopCard(ms,cnt,L))}
   <div class="grid g2">${timingBars(ms)}${placeTable(L)}</div>
-  <h2 style="margin:22px 0 4px">Le singole morti</h2>
+  <h2 id="eList" style="margin:22px 0 4px">Le singole morti</h2>
   <div class="sub" style="margin-bottom:8px">Il dettaglio di ogni morte (mappa, fotogrammi, cosa fare) è dentro la singola partita, nel tab "Errori". Clicca una riga per aprirla direttamente.</div>
+  <div class="card fbar2"><label><b>Mostra solo le morti per questa causa:</b> <select id="eCatSel"><option value="all">Tutte (${L.length})</option>${order.map(k=>`<option value="${k}" ${state.eCat===k?'selected':''}>${ECAT[k]} (${cnt[k]})</option>`).join('')}</select></label>
+    ${state.ePlace?`<button type="button" class="fchip" data-eplace="${esc(state.ePlace)}" title="Togli il filtro">Punto: ${esc(state.ePlace.split('|')[1]||'?')} ✕</button>`:''}
+    <span class="sub" style="margin:0">Elenco qui sotto: <b>${vis.length}</b> morti su ${L.length}${state.eCat!=='all'?` · causa «${esc(ECAT[state.eCat]||state.eCat)}»`:''}. Cambia solo questa tabella, non i numeri e i grafici sopra.</span></div>
   ${vis.length?`<div class="card"><div class="scroll"><table class="timeline"><thead><tr><th>Partita</th><th>Mappa</th><th>Round</th><th>Lato</th><th>Dove</th><th>Cause</th></tr></thead><tbody>${vis.slice(0,state.eShown).map(it=>`<tr class="click" data-gomatch="${it.m.id}" data-gofocus="d-${it.m.id}-${it.e.r}-${it.e.tick}"><td>#${idxOf(it.m)}</td><td>${mapName(it.m.map)}</td><td>${it.e.r}</td><td><span class="side ${it.e.side}">${it.e.side}</span></td><td style="text-align:left">${esc(it.e.c.pl||'?')}</td><td style="text-align:left;white-space:normal">${it.rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).join(', ')||'nessuna evidente'}</td></tr>`).join('')}</tbody></table></div></div>`:'<div class="empty">Nessuna morte con questo filtro.</div>'}
   ${vis.length>state.eShown?`<p style="text-align:center"><button class="btn" data-emore="1">Mostra altre (${vis.length-state.eShown})</button></p>`:''}
   ${foldCard(sourcesCard())}`;
@@ -6006,6 +6014,21 @@ window.addEventListener('popstate', e => {
   navButtons();
   window.scrollTo(0, s.y || 0);
 });
+/* tables: header stays visible while scrolling, with a short explanation under each column name */
+const TH_HINT = {'noi':'tipo di buy del tuo team (media soldi · tuoi)','loro':'tipo di buy degli avversari','cosa hai comprato':'armi, armatura e granate','tuoi $ a fine acquisti':'soldi che ti restano dopo gli acquisti','loss bonus':'bonus se perdi questo round','note':'segnali sulla spesa','esito':'round vinto o perso','dove':'zona della mappa in cui sei morto','cause':'perché sei morto (segnali dalla demo)','partita':'numero della partita','colpi':'proiettili sparati','a segno':'colpi che hanno preso un nemico','precisione':'a segno ÷ sparati','testa':'% dei colpi a segno alla testa','danno/colpo':'danno medio per colpo a segno','kill':'uccisioni','adr':'danno medio per round','kast':'% round con kill, assist, sopravvissuto o tradato','apertura':'% duelli d\'apertura vinti','v-p':'partite vinte – perse','rating':'stima del rating','round vinti ct':'% round vinti in difesa','round vinti t':'% round vinti in attacco','score':'punteggio finale','mvp':'volte miglior giocatore del round','hs%':'% kill con headshot','durata':'durata della partita','killer':'chi ti ha ucciso','arma · dist.':'arma e distanza in metri','tradata':'un compagno ti ha vendicato subito','segnali':'cosa non ha funzionato','tempo':'secondi dall\'inizio del round','punto':'nome della zona sulla mappa','morti':'volte che sei morto qui','tradate':'morti vendicate da un compagno / totale','nemici accecati':'avversari accecati almeno 1,1 s','compagni':'compagni accecati da te','tu':'secondi in cui ti sei accecato da solo','kill dopo la flash':'un accecato è stato ucciso subito dopo','giudizio':'valutazione della flash','tempo medio':'secondi medi dall\'inizio del round','dispersione':'quanto cambia il punto di lancio','k/a/d':'kill / assist / morti','danni':'danni inflitti','equip (noi / loro)':'valore equipaggiamento tuo team / avversari','stato':'esito dell\'analisi','lanci':'numero di lanci','zona':'zona della mappa','k/d':'kill ÷ morti','buy':'tipo di acquisto','tipo di buy (squadra)':'pistol, eco, force o full buy','a':'assist','k':'kill','d':'morti'};
+function setThTop(){ const h = document.querySelector('header.top'), m = document.querySelector('.mstick'); document.documentElement.style.setProperty('--th', ((h ? h.offsetHeight : 57) + (m ? m.offsetHeight : 0)) + 'px'); }
+window.addEventListener('resize', setThTop);
+function initTables(){
+  setThTop();
+  document.querySelectorAll('#main th').forEach(th => {
+    if(th.querySelector('.th-h')) return;
+    const k = th.textContent.trim().toLowerCase(), h = TH_HINT[k];
+    if(!h) return;
+    th.title = th.textContent.trim() + ': ' + h;
+    th.insertAdjacentHTML('beforeend', '<span class="th-h">' + h + '</span>');
+  });
+  document.querySelectorAll('#main .scroll').forEach(sc => { if(sc.scrollWidth > sc.clientWidth + 2) sc.classList.add('hs'); });
+}
 /* remembers the scroll position of each view, so going back from a map or from E-learning returns to the same spot */
 const SCROLL_MEM = {};
 function keepScroll(change){ SCROLL_MEM[JSON.stringify(navSnap())] = window.scrollY; change(); render(); window.scrollTo(0, SCROLL_MEM[JSON.stringify(navSnap())] || 0); }
@@ -6026,6 +6049,7 @@ function render(){
   $('#main').innerHTML = html;
   initZoom();
   initReplay();
+  initTables();
   navSync();
   const hh = document.querySelector('header.top'); if(hh) { document.documentElement.style.setProperty('--hh', hh.offsetHeight+'px'); const ms_ = document.querySelector('.mstick'); document.documentElement.style.setProperty('--sh', (hh.offsetHeight + (ms_ ? ms_.offsetHeight + 14 : 0) + 12)+'px'); }
   if(state.focusDeath){ const el = document.getElementById(state.focusDeath); state.focusDeath = null; if(el) el.scrollIntoView({block:'start'}); }
@@ -6056,7 +6080,7 @@ document.addEventListener('click', e => {
   if(t.closest('#mode')){ state.mode = t.dataset.v; return render(); }
   if(t.id==='btnImp'||t.id==='btnImp2') return $('#imp').click();
   if(t.dataset.acc){ document.querySelectorAll('.accs details').forEach(d=>{ d.open = t.dataset.acc==='open'; }); return; }
-  if(t.dataset.ecat!==undefined){ state.eCat = t.dataset.ecat; state.ePlace = null; state.eShown = 10; return render(); }
+  if(t.dataset.ecat!==undefined){ state.eCat = t.dataset.ecat; state.ePlace = null; state.eShown = 10; render(); if(t.dataset.escroll){ const l = document.getElementById('eList'); if(l) window.scrollTo(0, l.getBoundingClientRect().top + window.scrollY - (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hh'))||60) - 10); } return; }
   if(t.dataset.eplace!==undefined){ state.ePlace = state.ePlace===t.dataset.eplace ? null : t.dataset.eplace; state.eShown = 10; return render(); }
   if(t.dataset.emore){ state.eShown += 10; return render(); }
   if(t.dataset.gomatch){ state.tab='partite'; state.sel = t.dataset.gomatch; state.selView='err'; state.focusDeath = t.dataset.gofocus||null; return render(); }

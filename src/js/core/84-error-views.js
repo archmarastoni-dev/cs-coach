@@ -221,18 +221,20 @@ function viewErrori(ms){
   const note = missNote + (L.length<20 ? `<div class="note">Analizzate ${L.length} morti di ${ms.length} ${ms.length===1?'partita':'partite'}: sono indizi, non verdetti. Il quadro diventa solido dopo qualche partita in più.</div>` : '');
   return `${note}
   <div class="card"><h2>Cosa ti costa più round</h2><div class="sub">Su ${L.length} morti analizzate. Una morte può avere più cause.</div>
-    ${top.length?`<div class="causes">${top.map((k,i)=>`<div class="cause"><div class="ch"><b>${i+1} · ${ECAT[k]}</b><span class="cv">${pc(cnt[k]/L.length)}</span></div><div class="bar"><i style="width:${Math.min(100,cnt[k]/L.length*100)}%;background:var(--warn)"></i></div><div class="sub">${cnt[k]} morti su ${L.length}. ${esc(FOCUS[k])}.${i?`<br>${esc(DRILL[k]||'')}`:''}</div></div>`).join('')}</div>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
+    ${top.length?`<div class="causes">${top.map((k,i)=>`<div class="cause"><div class="ch"><b>${i+1} · ${ECAT[k]}</b><span class="cv">${pc(cnt[k]/L.length)}</span></div><div class="bar"><i style="width:${Math.min(100,cnt[k]/L.length*100)}%;background:var(--warn)"></i></div><div class="sub">${cnt[k]} morti su ${L.length}. ${esc(FOCUS[k])}.${i?`<br>${esc(DRILL[k]||'')}`:''}</div><button type="button" class="btn mini" data-ecat="${k}" data-escroll="1">Vedi queste ${cnt[k]} morti ›</button></div>`).join('')}</div>`:'<p class="sub">Nessun segnale ricorrente.</p>'}
     <details class="mini"><summary>Come leggere questi dati</summary><div class="sub">${cnt.scontro||0} morti su ${L.length} (${pc((cnt.scontro||0)/L.length)}) sono avvenute in pieno scontro: kill appena fatta o compagno caduto vicino, non conteggiate come errori di reazione. I segnali sono regole sui dati della demo: valuta sempre se nel contesto del round avevano senso.</div></details>
-    <div class="fbar2"><label>Causa <select id="eCatSel"><option value="all">Tutte (${L.length})</option>${order.map(k=>`<option value="${k}" ${state.eCat===k?'selected':''}>${ECAT[k]} (${cnt[k]})</option>`).join('')}</select></label>
-      ${state.ePlace?`<button type="button" class="fchip" data-eplace="${esc(state.ePlace)}" title="Togli il filtro">Punto: ${esc(state.ePlace.split('|')[1]||'?')} ✕</button>`:''}</div></div>
+  </div>
   ${trendCard(ms, L, top)}
   ${utilCoach(ms, L)}
   ${aim}
   ${foldCard(posSummary(L), true)}
   ${foldCard(workshopCard(ms,cnt,L))}
   <div class="grid g2">${timingBars(ms)}${placeTable(L)}</div>
-  <h2 style="margin:22px 0 4px">Le singole morti</h2>
+  <h2 id="eList" style="margin:22px 0 4px">Le singole morti</h2>
   <div class="sub" style="margin-bottom:8px">Il dettaglio di ogni morte (mappa, fotogrammi, cosa fare) è dentro la singola partita, nel tab "Errori". Clicca una riga per aprirla direttamente.</div>
+  <div class="card fbar2"><label><b>Mostra solo le morti per questa causa:</b> <select id="eCatSel"><option value="all">Tutte (${L.length})</option>${order.map(k=>`<option value="${k}" ${state.eCat===k?'selected':''}>${ECAT[k]} (${cnt[k]})</option>`).join('')}</select></label>
+    ${state.ePlace?`<button type="button" class="fchip" data-eplace="${esc(state.ePlace)}" title="Togli il filtro">Punto: ${esc(state.ePlace.split('|')[1]||'?')} ✕</button>`:''}
+    <span class="sub" style="margin:0">Elenco qui sotto: <b>${vis.length}</b> morti su ${L.length}${state.eCat!=='all'?` · causa «${esc(ECAT[state.eCat]||state.eCat)}»`:''}. Cambia solo questa tabella, non i numeri e i grafici sopra.</span></div>
   ${vis.length?`<div class="card"><div class="scroll"><table class="timeline"><thead><tr><th>Partita</th><th>Mappa</th><th>Round</th><th>Lato</th><th>Dove</th><th>Cause</th></tr></thead><tbody>${vis.slice(0,state.eShown).map(it=>`<tr class="click" data-gomatch="${it.m.id}" data-gofocus="d-${it.m.id}-${it.e.r}-${it.e.tick}"><td>#${idxOf(it.m)}</td><td>${mapName(it.m.map)}</td><td>${it.e.r}</td><td><span class="side ${it.e.side}">${it.e.side}</span></td><td style="text-align:left">${esc(it.e.c.pl||'?')}</td><td style="text-align:left;white-space:normal">${it.rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).join(', ')||'nessuna evidente'}</td></tr>`).join('')}</tbody></table></div></div>`:'<div class="empty">Nessuna morte con questo filtro.</div>'}
   ${vis.length>state.eShown?`<p style="text-align:center"><button class="btn" data-emore="1">Mostra altre (${vis.length-state.eShown})</button></p>`:''}
   ${foldCard(sourcesCard())}`;
