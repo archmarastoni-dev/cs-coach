@@ -25,15 +25,16 @@ function trendSVG(ms, side, key){
   const [lab, fn, dec] = defs[key];
   const pts = ms.map(m => ({m, v: fn(agg([m], side))})).filter(p => isFinite(p.v));
   if(!pts.length) return '<div class="empty">Nessun dato</div>';
-  const W=720,H=220,pl=70,pr=70,pt=14,pb=28;
+  const W=720,H=220,pl=44,pr=24,pt=14,pb=28;
   const vs = pts.map(p=>p.v); let lo=Math.min(...vs), hi=Math.max(...vs); if(lo===hi){lo-=1;hi+=1;} const pad=(hi-lo)*.15; lo-=pad; hi+=pad;
   const X = i => pl + (pts.length===1 ? (W-pl-pr)/2 : i*(W-pl-pr)/(pts.length-1));
   const Y = v => pt + (1-(v-lo)/(hi-lo))*(H-pt-pb);
   const avg = vs.reduce((a,b)=>a+b,0)/vs.length;
   let g=''; for(let i=0;i<=3;i++){ const v=lo+(hi-lo)*i/3; g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end" fill="var(--ink-3)" font-size="11">${v.toFixed(dec)}</text>`; }
+  const step = Math.max(1, Math.ceil(pts.length/12));
   const path = pts.map((p,i)=>`${i?'L':'M'}${X(i)} ${Y(p.v)}`).join('');
   const dots = pts.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="6" fill="${p.m.result==='W'?'var(--good)':'var(--bad)'}" stroke="var(--surface)" stroke-width="2" ${tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+p.m.score.us+'-'+p.m.score.them+' · '+lab+' '+p.v.toFixed(dec))}/>
-    <text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11">#${idxOf(p.m)} ${esc(mapName(p.m.map))}</text>`).join('');
+    ${i%step===0||i===pts.length-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11">#${idxOf(p.m)}</text>`:''}`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Andamento ${lab}">${g}
     <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--accent)" stroke-dasharray="4 4" opacity=".7"/>
     <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>${dots}</svg>

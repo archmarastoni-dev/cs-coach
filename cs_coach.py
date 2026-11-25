@@ -209,7 +209,9 @@ def process(folders, db, db_path, html_path, delete, failed):
             db["processed"].append(key)       # demo of another player: do not retry
             save_db(db_path, db)
         except Exception as e:
+            import traceback
             log(f"  ERROR: {e}. The demo is left where it is.")
+            log("  " + traceback.format_exc().strip().replace("\n", "\n  "))
             failed.add(key)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)

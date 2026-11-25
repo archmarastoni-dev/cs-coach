@@ -41,6 +41,22 @@ HIT_GROUPS = {"head": "Testa", "neck": "Collo", "chest": "Petto", "stomach": "St
 WEAPON_ALIAS = {"m4a1_silencer": "m4a1", "usp_silencer": "hkp2000", "knife_t": "knife", "incgrenade": "molotov"}
 
 
+EVENT_COLS = {
+    "bomb_planted": ["tick", "user_steamid", "site"],
+    "bomb_defused": ["tick", "user_steamid", "site"],
+}
+
+
+def read_event(p, name, **kw):
+    """parse_event that always returns a DataFrame (demoparser2 returns [] when an event never fires)."""
+    import pandas as pd
+    res = p.parse_event(name, **kw)
+    if isinstance(res, pd.DataFrame):
+        return res
+    cols = EVENT_COLS.get(name, ["tick", "user_steamid", "attacker_steamid", "assister_steamid"])
+    return pd.DataFrame(res) if res else pd.DataFrame(columns=cols)
+
+
 def wn(w):
     w = str(w or "").replace("weapon_", "")
     return WEAPON_ALIAS.get(w, w)
@@ -137,12 +153,12 @@ def parse_demo(path, me_id):
     map_name = header.get("map_name", "unknown")
 
     # ---------------------------------------------------------------- round structure
-    rs = p.parse_event("round_start").sort_values("tick")
-    fe = p.parse_event("round_freeze_end").sort_values("tick")
-    re_ = p.parse_event("round_end").sort_values("tick")
+    rs = read_event(p, "round_start").sort_values("tick")
+    fe = read_event(p, "round_freeze_end").sort_values("tick")
+    re_ = read_event(p, "round_end").sort_values("tick")
     re_ = re_[re_["round"].notna()]
     try:
-        match_start = int(p.parse_event("begin_new_match")["tick"].max())
+        match_start = int(read_event(p, "begin_new_match")["tick"].max())
     except Exception:
         match_start = None
     played = re_[re_["winner"].notna()]                       # real round ends (the tick-1 placeholder has no winner)
@@ -206,18 +222,18 @@ def parse_demo(path, me_id):
     buys = collect_buys(p, rounds, freeze_end, end_tick)
 
     # ---------------------------------------------------------------- events
-    deaths = p.parse_event("player_death", player=["X", "Y", "Z"])
-    hurts = p.parse_event("player_hurt")
-    blinds = p.parse_event("player_blind")
-    fires = p.parse_event("weapon_fire")
+    deaths = read_event(p, "player_death", player=["X", "Y", "Z"])
+    hurts = read_event(p, "player_hurt")
+    blinds = read_event(p, "player_blind")
+    fires = read_event(p, "weapon_fire")
     det = {
-        "smoke": p.parse_event("smokegrenade_detonate"),
-        "flash": p.parse_event("flashbang_detonate"),
-        "he": p.parse_event("hegrenade_detonate"),
-        "molotov": p.parse_event("inferno_startburn"),
+        "smoke": read_event(p, "smokegrenade_detonate"),
+        "flash": read_event(p, "flashbang_detonate"),
+        "he": read_event(p, "hegrenade_detonate"),
+        "molotov": read_event(p, "inferno_startburn"),
     }
-    plants = p.parse_event("bomb_planted")
-    defuses = p.parse_event("bomb_defused")
+    plants = read_event(p, "bomb_planted")
+    defuses = read_event(p, "bomb_defused")
 
     for df in (deaths, hurts, blinds, fires):
         for col in ("attacker_steamid", "user_steamid", "assister_steamid"):
