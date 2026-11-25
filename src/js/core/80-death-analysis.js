@@ -135,9 +135,11 @@ function deathRadar(m, e){
     const col = p.tm==='me' ? '#ffd34d' : p.tm==='mate' ? '#4aa3ff' : '#ff5c5c';
     const lab = p.tm==='me' ? 'Tu' : esc(p.n);
     const info = `${p.tm==='me'?'Tu (morto qui)':p.tm==='mate'?'Compagno':'Avversario'} · ${esc(p.n)}${p.pl?' · '+esc(p.pl):''}${p.w?' · '+esc(wname(p.w)):''}`;
-    if(p.tm==='me') sh.push(`<path d="M${u-R(11)} ${v-R(11)}L${u+R(11)} ${v+R(11)}M${u+R(11)} ${v-R(11)}L${u-R(11)} ${v+R(11)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round" ${tipAttr(info)}/>`);
-    else sh.push(`<circle cx="${u}" cy="${v}" r="${R(p.k?11:9)}" fill="${col}" stroke="${p.k?'#fff':'#000'}" stroke-width="${R(p.k?3.5:2)}" ${tipAttr(info+(p.k?' · ti ha ucciso':''))}/>`);
-    if(p.tm==='me' || p.k || (p.tm==='mate' && p.n===c.mn)) sh.push(`<text x="${u+R(14)}" y="${v-R(12)}" fill="#fff" font-size="${R(20)}" stroke="#000" stroke-width="${R(4)}" paint-order="stroke" font-weight="600">${lab}</text>`);
+    const itS = [];
+    if(p.tm==='me') itS.push(`<path d="M${u-R(11)} ${v-R(11)}L${u+R(11)} ${v+R(11)}M${u+R(11)} ${v-R(11)}L${u-R(11)} ${v+R(11)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round" ${tipAttr(info)}/>`);
+    else itS.push(`<circle cx="${u}" cy="${v}" r="${R(p.k?11:9)}" fill="${col}" stroke="${p.k?'#fff':'#000'}" stroke-width="${R(p.k?3.5:2)}" ${tipAttr(info+(p.k?' · ti ha ucciso':''))}/>`);
+    if(p.tm==='me' || p.k || (p.tm==='mate' && p.n===c.mn)) itS.push(`<text x="${u+R(14)}" y="${v-R(12)}" fill="#fff" font-size="${R(20)}" stroke="#000" stroke-width="${R(4)}" paint-order="stroke" font-weight="600">${lab}</text>`);
+    sh.push(`<g class="it">${itS.join('')}</g>`);
   }
   return radarSVG(map, sh, {vb: vb.map(v=>+v.toFixed(1)).join(' ')});
 }

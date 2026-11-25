@@ -128,3 +128,33 @@ svg.radar.grab{cursor:grabbing}
 .bars .b{flex:1;border-radius:3px 3px 0 0;min-height:2px}
 .barlab{display:flex;gap:6px;font-size:11px;color:var(--muted,#9fb0c3)}.barlab span{flex:1;text-align:center}
 
+
+/* click-to-highlight on map elements */
+svg.radar .it{cursor:pointer}
+svg.radar.has-sel .it{opacity:.14}
+svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
+.zsel{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;max-width:92%;font-size:12.5px;color:#fff;background:rgba(0,0,0,.78);padding:5px 11px;border-radius:6px;pointer-events:none;text-align:center}
+.zwrap:has(.zsel[style*="block"]) .zhint{display:none}
+/* full-screen map */
+#fsmap{position:fixed;inset:0;z-index:40;background:rgba(5,8,12,.94);display:flex;align-items:center;justify-content:center}
+#fsmap .fs-box{height:min(96vh,96vw);width:min(96vh,96vw)}
+#fsmap svg.radar{width:100%;height:100%;display:block}
+#fsmap .fs-x{position:absolute;top:14px;right:18px;width:38px;height:38px;border-radius:8px;border:1px solid var(--line);background:rgba(16,22,29,.9);color:#fff;font-size:18px;cursor:pointer}
+
+/* replay */
+.rp{margin-top:12px}
+.rp-stage{position:relative;background:#0b1015;border-radius:10px;overflow:hidden;aspect-ratio:1;max-height:720px;margin:0 auto}
+.rp-svg,.rp-svg svg{width:100%;height:100%;display:block}
+.rp-svg svg{cursor:pointer}
+.rp-feed{position:absolute;left:10px;top:10px;font-size:13px;color:#fff;background:rgba(0,0,0,.55);border-radius:6px;padding:0 8px;pointer-events:none}
+.rp-feed div{padding:3px 0}
+.rp-feed:empty{display:none}
+.rp-fs{position:absolute;right:8px;top:8px;width:30px;height:30px;border-radius:6px;border:1px solid var(--line);background:rgba(16,22,29,.88);color:#e6edf5;cursor:pointer}
+.rp-bar{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.rp-seek{flex:1;min-width:160px}
+.rp-time{font-size:12.5px;color:var(--ink-3)}
+.rp-whole{font-size:12.5px;color:var(--ink-2)}
+.rp.rp-full{position:fixed;inset:0;z-index:40;background:#05080c;margin:0;padding:12px;display:flex;flex-direction:column}
+.rp.rp-full .rp-stage{flex:1;max-height:none;aspect-ratio:auto;min-height:0}
+.rp.rp-full .rp-bar{color:#fff}
+.rp.rp-full .btn,.rp.rp-full select{background:#16202b;color:#fff;border-color:#2a3644}

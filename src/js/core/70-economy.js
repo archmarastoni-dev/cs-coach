@@ -135,7 +135,7 @@ function econCards(m){
 }
 function viewMatch(m){
   const sc = m.score, partial = !m.complete ? `<div class="note">Questa partita sembra incompleta (nessuna squadra ha raggiunto 13 round): potrebbe essere finita per resa o abbandono.</div>` : '';
-  const tabs = [['analisi','Analisi'],['err','Errori'],['eco','Economia'],['score','Scoreboard'],['rounds','Round per round'],['map','Mappa']];
+  const tabs = [['analisi','Analisi'],['err','Errori'],['eco','Economia'],['score','Scoreboard'],['rounds','Round per round'],['map','Mappa'],['replay','Replay']];
   let body = '';
   if(state.selView==='analisi'){
     body = matchAnalysis(m);
@@ -149,6 +149,8 @@ function viewMatch(m){
     const hd = `<tr><th>Giocatore</th><th>Rating</th><th>K</th><th>A</th><th>D</th><th>+/-</th><th>ADR</th><th>KAST</th><th>HS%</th>${adv?'<th>Apertura</th><th>Trade</th><th>Clutch</th><th>Flash</th><th>Smoke</th><th>Danni util.</th>':''}</tr>`;
     body = `<div class="card"><h2>La tua squadra · ${sc.us}</h2><div class="scroll"><table><thead>${hd}</thead><tbody>${mk(m.players.filter(p=>p.mine_team))}</tbody></table></div></div>
             <div class="card"><h2>Avversari · ${sc.them}</h2><div class="scroll"><table><thead>${hd}</thead><tbody>${mk(m.players.filter(p=>!p.mine_team))}</tbody></table></div></div>`;
+  } else if(state.selView==='replay'){
+    body = viewReplay(m);
   } else if(state.selView==='rounds'){
     const rows = m.rounds.filter(r=>sideOk(state.fSide,r)).map(r => {
       const evs = [...m.me.kills.filter(e=>e.r===r.r).map(e=>({t:e.t, s:`<b class="up">Kill</b> ${wname(e.w)}${e.hs?' (testa)':''} su ${esc(e.victim)} · ${f1(e.dist,0)} m`})),
@@ -231,12 +233,12 @@ function viewUtility(ms){
   const pts = [...utils.map(u=>[u.lx,u.ly]), ...utils.filter(u=>u.ox!==undefined).map(u=>[u.ox,u.oy]), ...refs.map(r=>[r.lx,r.ly])];
   const pt = ptFn(map, pts.length?pts:[[0,0],[1,1]]);
   const sh = [];
-  for(const r of refs){ const [u,v]=pt(r.lx,r.ly); sh.push(`<circle cx="${u}" cy="${v}" r="9" fill="#9aa7b8" fill-opacity=".35" stroke="#fff" stroke-opacity=".5" ${tipAttr('Smoke di un altro giocatore · '+r.side+' · '+r.t+' s')}/>`); }
+  for(const r of refs){ const [u,v]=pt(r.lx,r.ly); sh.push(`<g class="it"><circle cx="${u}" cy="${v}" r="9" fill="#9aa7b8" fill-opacity=".35" stroke="#fff" stroke-opacity=".5" ${tipAttr('Smoke di un altro giocatore · '+r.side+' · '+r.t+' s')}/></g>`); }
   for(const u of utils){
     if(!state.uKinds[u.kind]) continue;
     const [lx,ly]=pt(u.lx,u.ly); const c = KCOL[u.kind]; const rad = u.kind==='smoke'?15:9;
     let line=''; if(u.ox!==undefined){ const [ox,oy]=pt(u.ox,u.oy); line = `<line x1="${ox}" y1="${oy}" x2="${lx}" y2="${ly}" stroke="${c}" stroke-opacity=".7" stroke-width="2" stroke-dasharray="7 5"/><circle cx="${ox}" cy="${oy}" r="5" fill="#fff" stroke="#000"/>`; }
-    sh.push(`${line}<circle cx="${lx}" cy="${ly}" r="${rad}" fill="${c}" fill-opacity=".55" stroke="#fff" stroke-width="2" ${tipAttr(KIND[u.kind]+' · round '+u.r+' · '+u.side+' · a '+u.t+' s'+(u.pitch!==undefined?' · mira '+u.pitch+'° / '+u.yaw+'°':''))}/>`);
+    sh.push(`<g class="it">${line}<circle cx="${lx}" cy="${ly}" r="${rad}" fill="${c}" fill-opacity=".55" stroke="#fff" stroke-width="2" ${tipAttr(KIND[u.kind]+' · round '+u.r+' · '+u.side+' · a '+u.t+' s'+(u.pitch!==undefined?' · mira '+u.pitch+'° / '+u.yaw+'°':''))}/></g>`);
   }
   const U = utilAgg(mm, side);
   const fl = U.flashAll||0;

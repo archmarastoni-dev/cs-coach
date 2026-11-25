@@ -27,6 +27,7 @@ document.addEventListener('click', e => {
   if(t.dataset.sort){ const k = t.dataset.sort; if(state.sortKey===k) state.sortDir*=-1; else {state.sortKey=k; state.sortDir=(k==='map'||k==='idx')?1:-1;} return render(); }
   if(t.dataset.match){ state.sel = t.dataset.match; state.selView='analisi'; state.openRound=null; return render(); }
   if(t.dataset.back){ state.sel = null; return render(); }
+  if(t.dataset.rclip!==undefined){ RP.clip = +t.dataset.rclip; RP.t = 0; RP.sel = -1; return render(); }
   if(t.closest('#mview')){ state.selView = t.dataset.v; return render(); }
   if(t.dataset.round){ const r=+t.dataset.round; state.openRound = state.openRound===r?null:r; return render(); }
   if(t.dataset.layer){ state.layers[t.dataset.layer] = t.checked; return render(); }

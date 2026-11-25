@@ -57,6 +57,129 @@ def read_event(p, name, **kw):
     return pd.DataFrame(res) if res else pd.DataFrame(columns=cols)
 
 
+PROJECTILES = {"CSmokeGrenadeProjectile": "smoke", "CFlashbangProjectile": "flash",
+               "CHEGrenadeProjectile": "he", "CMolotovProjectile": "molotov"}
+
+
+def _projectiles(p):
+    """One row per thrown grenade: thrower, first/last tick in the air and landing point, per kind."""
+    import pandas as pd
+    try:
+        g = p.parse_grenades()
+    except Exception:
+        return {}
+    if not isinstance(g, pd.DataFrame) or g.empty:
+        return {}
+    g = g[g["grenade_type"].isin(PROJECTILES) & g["x"].notna()]
+    out = {}
+    for typ, kind in PROJECTILES.items():
+        d = g[g["grenade_type"] == typ].sort_values("tick")
+        if d.empty:
+            continue
+        a = d.groupby("grenade_entity_id").agg(sid=("steamid", "first"), t0=("tick", "min"), t1=("tick", "max"),
+                                               x1=("x", "last"), y1=("y", "last")).reset_index()
+        a = a.rename(columns={"grenade_entity_id": "eid"})
+        a["sid"] = a["sid"].apply(sid)
+        out[kind] = a
+    return out
+
+
+REPLAY_HZ = 4              # samples per second in a replay clip
+REPLAY_MAX_CLIPS = 8
+REPLAY_MAX_SECONDS = 18
+UTIL_LIFE = {"smoke": 18, "molotov": 7, "flash": 1, "he": 1}     # seconds the effect stays on the map
+
+
+def build_replays(p, me_id, kills, deaths, clutches, team_of, names, freeze_end, end_tick, by_round_deaths, util_rows, plants, defuses):
+    """Short 2D replay clips of my key moments: positions of all 10 players at REPLAY_HZ plus kills and utility."""
+    import pandas as pd
+    clutch_rounds = {c["r"]: c for c in clutches}
+    per_round = defaultdict(list)
+    for e in kills:
+        per_round[e["r"]].append(("k", e))
+    for e in deaths:
+        if not e.get("teamkill"):
+            per_round[e["r"]].append(("d", e))
+    cands = []
+    for r, evs in per_round.items():
+        nk = sum(1 for t, _ in evs if t == "k")
+        score, why = 0, []
+        if nk >= 3:
+            score += 100 + 10 * nk; why.append(f"{nk} kill")
+        elif nk == 2:
+            score += 40; why.append("2 kill")
+        if any(t == "k" and e["open"] for t, e in evs):
+            score += 60; why.append("primo duello vinto")
+        c = clutch_rounds.get(r)
+        if c:
+            score += 50 + (25 if c["won"] else 0); why.append(f"clutch 1v{c['vs']} {'vinto' if c['won'] else 'perso'}")
+        dd = [e for t, e in evs if t == "d"]
+        if dd and dd[0]["open"]:
+            score += 30; why.append("morto per primo")
+        elif dd:
+            score += 10; why.append("morto")
+        if score:
+            cands.append((score, r, " · ".join(why), evs))
+    cands.sort(key=lambda x: -x[0])
+    chosen = sorted(cands[:REPLAY_MAX_CLIPS], key=lambda x: x[1])
+    if not chosen:
+        return []
+    step = int(TICKRATE / REPLAY_HZ)
+    plan = []
+    all_ticks = set()
+    for score, r, why, evs in chosen:
+        ticks = [int(e["tick"]) for _, e in evs]
+        t_a = max(freeze_end[r], min(ticks) - 6 * TICKRATE)
+        t_b = min(end_tick[r], max(ticks) + 3 * TICKRATE, t_a + REPLAY_MAX_SECONDS * TICKRATE)
+        grid = list(range(int(t_a), int(t_b) + 1, step))
+        plan.append((r, why, t_a, t_b, grid))
+        all_ticks.update(grid)
+    df = p.parse_ticks(["X", "Y", "yaw", "health", "team_num"], ticks=sorted(all_ticks))
+    df["steamid"] = df["steamid"].apply(sid)
+    out = []
+    for r, why, t_a, t_b, grid in plan:
+        teams = team_of[r]
+        my_team = teams.get(me_id)
+        sub = df[(df["tick"] >= t_a) & (df["tick"] <= t_b) & (df["steamid"].isin(teams))]
+        ids = sorted(teams, key=lambda s_: (s_ != me_id, teams[s_] != my_team, names.get(s_, "")))
+        idx = {s_: i for i, s_ in enumerate(ids)}
+        frames = {s_: [] for s_ in ids}
+        by_tick = {t: g.set_index("steamid") for t, g in sub.groupby("tick")}
+        last = {}
+        for t in grid:
+            g = by_tick.get(t)
+            for s_ in ids:
+                row = g.loc[s_] if g is not None and s_ in g.index else None
+                if row is not None and row["X"] == row["X"]:
+                    last[s_] = [int(row["X"]), int(row["Y"]), int(row["yaw"]) if row["yaw"] == row["yaw"] else 0,
+                                int(row["health"]) if row["health"] == row["health"] else 0]
+                frames[s_].append(last.get(s_, [0, 0, 0, 0]))
+        ks = []
+        for d in by_round_deaths.get(r, []):
+            if t_a <= int(d.tick) <= t_b:
+                a, v = sid(d.attacker_steamid), sid(d.user_steamid)
+                if v in idx:
+                    ks.append({"t": rnd((int(d.tick) - t_a) / TICKRATE, 2), "a": idx.get(a, -1), "v": idx[v],
+                               "w": wn(nz(d.weapon, "")), "hs": bool(d.headshot)})
+        us = []
+        for u in util_rows:
+            life = UTIL_LIFE.get(u["kind"], 1)
+            if u["r"] == r and t_a - life * TICKRATE <= u["tick"] <= t_b:
+                us.append({"t": rnd((u["tick"] - t_a) / TICKRATE, 2), "k": u["kind"], "x": int(u["lx"]), "y": int(u["ly"]), "p": idx.get(u["sid"], -1)})
+        bomb = []
+        for name_, dfb in (("plant", plants), ("defuse", defuses)):
+            for row in dfb.itertuples(index=False):
+                if t_a <= int(row.tick) <= t_b:
+                    bomb.append({"t": rnd((int(row.tick) - t_a) / TICKRATE, 2), "k": name_})
+        out.append({
+            "r": r, "why": why, "side": side_name(my_team), "hz": REPLAY_HZ, "t0": rnd((t_a - freeze_end[r]) / TICKRATE, 1),
+            "dur": rnd((t_b - t_a) / TICKRATE, 1),
+            "ps": [{"n": names.get(s_, str(s_)), "tm": 0 if s_ == me_id else (1 if teams[s_] == my_team else 2), "f": [v for fr in frames[s_] for v in fr]} for s_ in ids],
+            "k": ks, "u": us, "b": bomb,
+        })
+    return out
+
+
 def wn(w):
     w = str(w or "").replace("weapon_", "")
     return WEAPON_ALIAS.get(w, w)
@@ -479,27 +602,30 @@ def parse_demo(path, me_id):
             S[a]["enemy_flash_time"] += dur
 
     # ---------------------------------------------------------------- utility (throws with origin/landing)
-    fires_g = fires[fires["weapon"].isin(GRENADES)].copy()
-    fires_g["kind"] = fires_g["weapon"].map(GRENADES)
-    fires_g = fires_g.sort_values("tick")
+    # Projectile entities (parse_grenades) give the exact throw tick and the exact landing point of every
+    # grenade, so each detonation can be tied to the right throw even when several were in the air at once.
+    proj = _projectiles(p)
     used = set()
     util_rows = []
     for kind, df in det.items():
         df = df.sort_values("tick")
+        pk = proj.get(kind)
         for e in df.itertuples(index=False):
             if e.user_steamid not in S:
                 continue
             r = round_of(int(e.tick))
             if r is None:
                 continue
-            cands = fires_g[(fires_g["kind"] == kind) & (fires_g["user_steamid"] == e.user_steamid)
-                            & (fires_g["tick"] <= e.tick) & (fires_g["tick"] >= e.tick - 20 * TICKRATE)]
-            cands = [c for c in cands.itertuples() if c.Index not in used]
             ft = None
-            if cands:
-                c = cands[-1] if kind != "molotov" else cands[-1]
-                used.add(c.Index)
-                ft = int(c.tick)
+            if pk is not None:
+                c = pk[(pk["sid"] == e.user_steamid) & (pk["t1"] >= e.tick - 4 * TICKRATE) & (pk["t0"] <= e.tick)]
+                c = c[~c["eid"].isin(used)]
+                if len(c):
+                    dist = ((c["x1"] - float(e.x)) ** 2 + (c["y1"] - float(e.y)) ** 2) ** 0.5
+                    j = dist.idxmin()
+                    if dist[j] <= 250:                         # the landing must coincide with the detonation
+                        used.add(int(c.loc[j, "eid"]))
+                        ft = int(c.loc[j, "t0"])
             S[e.user_steamid][f"thrown_{kind}"] += 1
             teams = team_of[r]
             sd = side_name(teams.get(e.user_steamid, 0))
@@ -526,7 +652,7 @@ def parse_demo(path, me_id):
         o = {k: v for k, v in u.items() if k not in ("sid", "fire_tick", "tick")}
         if u["fire_tick"] and u["fire_tick"] in pos:
             o["ox"], o["oy"], o["pitch"], o["yaw"] = pos[u["fire_tick"]]
-            o["fly"] = rnd(0, 1)
+            o["fly"] = rnd((u["tick"] - u["fire_tick"]) / TICKRATE, 1)
         me_util_out.append(o)
     # every smoke landing (reference: where other players put them)
     smoke_ref = [{"side": u["side"], "lx": u["lx"], "ly": u["ly"], "t": u["t"], "me": u["sid"] == me_id}
@@ -629,6 +755,13 @@ def parse_demo(path, me_id):
     except Exception as ex:
         print(f"  [warning] aim analysis not computed: {ex}")
 
+    replays = []
+    try:
+        replays = build_replays(p, me_id, me_kills_ev, me_deaths_ev, clutch_list, team_of, names, freeze_end, end_tick,
+                                by_round_deaths, util_rows, plants, defuses)
+    except Exception as ex:   # an extra: it must never block the analysis
+        print(f"  [warning] replays not computed: {ex}")
+
     return {
         "id": match_id,
         "fp": fp,
@@ -647,6 +780,7 @@ def parse_demo(path, me_id):
             "weapons": weapons, "hit_zones": dict(hit_zone), "plants": plant_me, "defuses": defuse_me, "mov": mov,
         },
         "smoke_ref": smoke_ref,
+        "replays": replays,
     }
 
 

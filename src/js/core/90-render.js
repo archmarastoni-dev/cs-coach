@@ -25,6 +25,7 @@ function render(){
   else html = ms.length ? viewCoach(ms) : '<div class="empty">Nessuna partita con questi filtri.</div>';
   $('#main').innerHTML = html;
   initZoom();
+  initReplay();
   if(state.focusDeath){ const el = document.getElementById(state.focusDeath); state.focusDeath = null; if(el) el.scrollIntoView({block:'start'}); }
 }
 function setTab(t){ state.tab = t; state.sel = null; try{ history.replaceState(null,'','#'+t); }catch(e){} render(); window.scrollTo(0,0); }

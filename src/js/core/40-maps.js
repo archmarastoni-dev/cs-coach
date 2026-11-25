@@ -41,13 +41,13 @@ function mapScene(map, ms, side, L){
   }
   for(const e of kills){
     const [u,v]=pt(e.ax,e.ay), [u2,v2]=pt(e.vx,e.vy); pts.push({u,v,type:'k'});
-    if(L.kills) sh.push(`<line x1="${u}" y1="${v}" x2="${u2}" y2="${v2}" stroke="#2bd47d" stroke-opacity=".45" stroke-width="2"/>
-      <circle cx="${u}" cy="${v}" r="7" fill="#2bd47d" stroke="#000" stroke-width="1.5" ${tipAttr(killTip(e,'uccisione di '+e.victim))}/>`);
+    if(L.kills) sh.push(`<g class="it"><line x1="${u}" y1="${v}" x2="${u2}" y2="${v2}" stroke="#2bd47d" stroke-opacity=".45" stroke-width="2"/>
+      <circle cx="${u}" cy="${v}" r="7" fill="#2bd47d" stroke="#000" stroke-width="1.5" ${tipAttr(killTip(e,'uccisione di '+e.victim))}/><circle cx="${u2}" cy="${v2}" r="4" fill="#2bd47d" fill-opacity=".6"/></g>`);
   }
   for(const e of deaths){
     const [u,v]=pt(e.vx,e.vy), [u2,v2]=pt(e.ax,e.ay); pts.push({u,v,type:'d', pl: e.c && e.c.pl});
-    if(L.deaths) sh.push(`<line x1="${u2}" y1="${v2}" x2="${u}" y2="${v}" stroke="#ff5c5c" stroke-opacity=".4" stroke-width="2" stroke-dasharray="6 4"/>
-      <path d="M${u-7} ${v-7}L${u+7} ${v+7}M${u+7} ${v-7}L${u-7} ${v+7}" stroke="#ff5c5c" stroke-width="4" stroke-linecap="round" ${tipAttr(killTip(e,'ucciso da '+e.killer)+(e.traded?' · tradato':' · non tradato'))}/>`);
+    if(L.deaths) sh.push(`<g class="it"><line x1="${u2}" y1="${v2}" x2="${u}" y2="${v}" stroke="#ff5c5c" stroke-opacity=".4" stroke-width="2" stroke-dasharray="6 4"/>
+      <circle cx="${u2}" cy="${v2}" r="4" fill="#ff5c5c" fill-opacity=".6"/><path d="M${u-7} ${v-7}L${u+7} ${v+7}M${u+7} ${v-7}L${u-7} ${v+7}" stroke="#ff5c5c" stroke-width="4" stroke-linecap="round" ${tipAttr(killTip(e,'ucciso da '+e.killer)+(e.traded?' · tradato':' · non tradato'))}/></g>`);
   }
   return {pt, sh, pts, kills, deaths};
 }

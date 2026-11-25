@@ -144,7 +144,7 @@ const LEARN_SOURCES = {
   "https://dignitas.gg/articles/cs2-best-cache-lineups"
  ],
  "co_csdb": [
-  "CSDB: callout standard di ogni mappa",
-  "https://csdb.gg/maps/"
+  "Total CS: callout di ogni mappa",
+  "https://totalcsgo.com/callouts"
  ]
 };

@@ -1,44 +1,89 @@
-/* map zoom and pan */
+/* map zoom, pan, click-to-highlight and full-screen view */
 const ZS = {};
+function tipOf(it){ const t = it.querySelector('[data-tip]'); return t ? t.dataset.tip : ''; }
+function setupMap(svg, key, opts={}){
+  const wrap = svg.parentNode;
+  const v0 = svg.getAttribute('viewBox').trim().split(/\s+/).map(Number);
+  const saved = ZS[key];
+  let v = (saved && saved.o.join()===v0.join()) ? saved.v.slice() : v0.slice();
+  const set = () => { svg.setAttribute('viewBox', v.map(n=>+n.toFixed(2)).join(' ')); ZS[key] = {o:v0, v:v.slice()}; };
+  const clamp = () => { v[2] = v[3] = Math.min(1000, Math.max(40, v[2])); v[0] = Math.min(1000-v[2], Math.max(0, v[0])); v[1] = Math.min(1000-v[3], Math.max(0, v[1])); };
+  const geo = () => { const r = svg.getBoundingClientRect(), s = Math.min(r.width/v[2], r.height/v[3]); return {r, s, ox:(r.width-v[2]*s)/2, oy:(r.height-v[3]*s)/2}; };
+  const zoomAt = (f, cx, cy) => { const nw = Math.min(1000, Math.max(40, v[2]*f)), k = nw/v[2]; v[0] = cx-(cx-v[0])*k; v[1] = cy-(cy-v[1])*k; v[2] = v[3] = nw; clamp(); set(); };
+  const centre = () => [v[0]+v[2]/2, v[1]+v[3]/2];
+  const reset = () => { v = v0.slice(); set(); };
+  svg.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    const g = geo(), cx = v[0]+(ev.clientX-g.r.left-g.ox)/g.s, cy = v[1]+(ev.clientY-g.r.top-g.oy)/g.s;
+    zoomAt(ev.deltaY<0 ? 0.8 : 1.25, cx, cy);
+  }, {passive:false});
+  let drag = null, moved = false;
+  svg.addEventListener('pointerdown', ev => { if(ev.button!==0) return; moved = false; drag = {x:ev.clientX, y:ev.clientY, v:v.slice(), on:false, id:ev.pointerId}; });
+  svg.addEventListener('pointermove', ev => {
+    if(!drag) return;
+    const dx = ev.clientX-drag.x, dy = ev.clientY-drag.y;
+    if(!drag.on){ if(Math.hypot(dx,dy)<4) return; drag.on = true; svg.classList.add('grab'); try{ svg.setPointerCapture(drag.id); }catch(e){} tip.style.display='none'; }
+    const s = geo().s; v[0] = drag.v[0]-dx/s; v[1] = drag.v[1]-dy/s; clamp(); set();
+  });
+  const end = () => { moved = !!(drag && drag.on); drag = null; svg.classList.remove('grab'); };
+  svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+  svg.addEventListener('dblclick', reset);
+
+  // click an element to highlight it, click another one (or the empty map) to change or clear the selection
+  const info = document.createElement('div'); info.className = 'zsel'; wrap.appendChild(info);
+  const select = it => {
+    svg.querySelectorAll('.it.is-sel').forEach(e => e.classList.remove('is-sel'));
+    svg.classList.toggle('has-sel', !!it);
+    if(it){ it.classList.add('is-sel'); it.parentNode.appendChild(it); }   // bring it in front
+    info.textContent = it ? tipOf(it) : ''; info.style.display = it && info.textContent ? 'block' : 'none';
+  };
+  svg.addEventListener('click', ev => {
+    if(moved){ moved = false; return; }
+    select(ev.target.closest ? ev.target.closest('.it') : null);
+  });
+  const pre = svg.querySelector('.it.is-sel'); if(pre) select(pre); else info.style.display = 'none';
+
+  const ctl = document.createElement('div'); ctl.className = 'zctl';
+  ctl.innerHTML = '<button type="button" aria-label="Ingrandisci" title="Ingrandisci">+</button><button type="button" aria-label="Riduci" title="Riduci">−</button><button type="button" aria-label="Ripristina vista" title="Ripristina vista">⟲</button>' + (opts.fs ? '' : '<button type="button" aria-label="Schermo intero" title="Schermo intero">⛶</button>');
+  const [bi, bo, br, bf] = ctl.children;
+  bi.onclick = () => { const c = centre(); zoomAt(0.7, c[0], c[1]); };
+  bo.onclick = () => { const c = centre(); zoomAt(1.43, c[0], c[1]); };
+  br.onclick = reset;
+  if(bf) bf.onclick = () => openFullscreen(svg, v);
+  wrap.appendChild(ctl);
+  const h = document.createElement('div'); h.className = 'zhint'; h.textContent = 'Rotellina: zoom · trascina: sposta · clic su un elemento: evidenzia · doppio clic: reset'; wrap.appendChild(h);
+  set();
+}
+function openFullscreen(src, view){
+  closeFullscreen();
+  const el = document.createElement('div'); el.id = 'fsmap';
+  const box = document.createElement('div'); box.className = 'fs-box zwrap';
+  const svg = src.cloneNode(true);
+  svg.setAttribute('viewBox', view.map(n=>+n.toFixed(2)).join(' '));
+  svg.querySelectorAll('.zctl,.zhint,.zsel').forEach(e => e.remove());
+  box.appendChild(svg); el.appendChild(box);
+  const x = document.createElement('button'); x.className = 'fs-x'; x.type = 'button'; x.setAttribute('aria-label','Chiudi'); x.textContent = '✕'; x.onclick = closeFullscreen; el.appendChild(x);
+  el.addEventListener('click', e => { if(e.target === el) closeFullscreen(); });
+  document.body.appendChild(el);
+  delete ZS['fs'];
+  setupMap(svg, 'fs', {fs:true});
+}
+function closeFullscreen(){ const e = document.getElementById('fsmap'); if(e) e.remove(); }
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeFullscreen(); });
 function initZoom(){
   document.querySelectorAll('svg.radar').forEach((svg, idx) => {
-    if(svg.parentNode.classList.contains('zwrap') || svg.closest('.frames')) return;
+    if(svg.parentNode.classList.contains('zwrap') || svg.classList.contains('rp-radar')) return;
     const wrap = document.createElement('div'); wrap.className = 'zwrap';
     svg.parentNode.insertBefore(wrap, svg); wrap.appendChild(svg);
-    const v0 = svg.getAttribute('viewBox').trim().split(/\s+/).map(Number);
-    const key = state.tab+':'+idx, saved = ZS[key];
-    let v = (saved && saved.o.join()===v0.join()) ? saved.v.slice() : v0.slice();
-    const set = () => { svg.setAttribute('viewBox', v.map(n=>+n.toFixed(2)).join(' ')); ZS[key] = {o:v0, v:v.slice()}; };
-    const clamp = () => { v[2] = v[3] = Math.min(1000, Math.max(40, v[2])); v[0] = Math.min(1000-v[2], Math.max(0, v[0])); v[1] = Math.min(1000-v[3], Math.max(0, v[1])); };
-    const geo = () => { const r = svg.getBoundingClientRect(), s = Math.min(r.width/v[2], r.height/v[3]); return {r, s, ox:(r.width-v[2]*s)/2, oy:(r.height-v[3]*s)/2}; };
-    const zoomAt = (f, cx, cy) => { const nw = Math.min(1000, Math.max(40, v[2]*f)), k = nw/v[2]; v[0] = cx-(cx-v[0])*k; v[1] = cy-(cy-v[1])*k; v[2] = v[3] = nw; clamp(); set(); };
-    const centre = () => [v[0]+v[2]/2, v[1]+v[3]/2];
-    const reset = () => { v = v0.slice(); set(); };
-    svg.addEventListener('wheel', ev => {
-      ev.preventDefault();
-      const g = geo(), cx = v[0]+(ev.clientX-g.r.left-g.ox)/g.s, cy = v[1]+(ev.clientY-g.r.top-g.oy)/g.s;
-      zoomAt(ev.deltaY<0 ? 0.8 : 1.25, cx, cy);
-    }, {passive:false});
-    let drag = null;
-    svg.addEventListener('pointerdown', ev => { if(ev.button!==0) return; drag = {x:ev.clientX, y:ev.clientY, v:v.slice(), on:false, id:ev.pointerId}; });
-    svg.addEventListener('pointermove', ev => {
-      if(!drag) return;
-      const dx = ev.clientX-drag.x, dy = ev.clientY-drag.y;
-      if(!drag.on){ if(Math.hypot(dx,dy)<4) return; drag.on = true; svg.classList.add('grab'); try{ svg.setPointerCapture(drag.id); }catch(e){} tip.style.display='none'; }
-      const s = geo().s; v[0] = drag.v[0]-dx/s; v[1] = drag.v[1]-dy/s; clamp(); set();
-    });
-    const end = () => { drag = null; svg.classList.remove('grab'); };
-    svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
-    svg.addEventListener('dblclick', reset);
-    const ctl = document.createElement('div'); ctl.className = 'zctl';
-    ctl.innerHTML = '<button type="button" aria-label="Ingrandisci" title="Ingrandisci">+</button><button type="button" aria-label="Riduci" title="Riduci">−</button><button type="button" aria-label="Ripristina vista" title="Ripristina vista">⟲</button>';
-    const [bi, bo, br] = ctl.children;
-    bi.onclick = () => { const c = centre(); zoomAt(0.7, c[0], c[1]); };
-    bo.onclick = () => { const c = centre(); zoomAt(1.43, c[0], c[1]); };
-    br.onclick = reset;
-    wrap.appendChild(ctl);
-    const h = document.createElement('div'); h.className = 'zhint'; h.textContent = 'Rotellina: zoom · trascina: sposta · doppio clic: reset'; wrap.appendChild(h);
-    set();
+    if(svg.closest('.frames')){
+      // small snapshot maps: only the full-screen button
+      const ctl = document.createElement('div'); ctl.className = 'zctl';
+      ctl.innerHTML = '<button type="button" aria-label="Schermo intero" title="Schermo intero">⛶</button>';
+      ctl.firstChild.onclick = () => openFullscreen(svg, svg.getAttribute('viewBox').trim().split(/\s+/).map(Number));
+      wrap.appendChild(ctl);
+      return;
+    }
+    setupMap(svg, state.tab+':'+idx);
   });
 }
 /* tooltip */
