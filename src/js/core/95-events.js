@@ -5,12 +5,15 @@ document.addEventListener('click', e => {
   const lbT = e.target.closest('[data-lbthrow]'); if(lbT && !LITE){ const [m,i]=lbT.dataset.lbthrow.split('|'); return lbThrow(m,+i); }
   const lbX = e.target.closest('[data-lbclose]'); if(lbX){ return lbClose(); }
   const lbG = e.target.closest('[data-lbgo]'); if(lbG){ return lbGo(+lbG.dataset.lbgo); }
+  const dvO = e.target.closest('[data-dv]'); if(dvO){ return dvOpen(+dvO.dataset.dv); }
+  const dvX = e.target.closest('[data-dvclose]'); if(dvX){ return dvClose(); }
+  const dvG = e.target.closest('[data-dvgo]'); if(dvG){ return dvGo(+dvG.dataset.dvgo); }
   const t = e.target.closest('button,tr,th,input,[data-tab]'); if(!t) return;
-  if(t.dataset.learn){ state.learn.on = t.dataset.learn==='1'; state.learn.map = null; render(); return window.scrollTo(0,0); }
+  if(t.dataset.learn){ return keepScroll(()=>{ state.learn.on = t.dataset.learn==='1'; state.learn.map = null; }); }
   if(t.dataset.lpath){ state.learn.path = t.dataset.lpath; return render(); }
-  if(t.dataset.lmap){ state.learn.map = t.dataset.lmap; render(); return window.scrollTo(0,0); }
+  if(t.dataset.lmap){ return keepScroll(()=>{ state.learn.map = t.dataset.lmap; }); }
   if(t.dataset.copy){ copyText(t.dataset.copy).then(ok=>{ const o=t.textContent; t.textContent = ok?'Copiato!':'Non copiato: selezionalo a mano'; setTimeout(()=>{t.textContent=o},1600); }); return; }
-  if(t.dataset.lback){ state.learn.map = null; render(); return window.scrollTo(0,0); }
+  if(t.dataset.lback){ return keepScroll(()=>{ state.learn.map = null; }); }
   if(t.dataset.tab){ state.learn.on = false; return setTab(t.dataset.tab); }
   if(t.dataset.clr){ if(t.dataset.clr==='all'){ state.fMap='all'; state.fKind='all'; state.fSide='all'; state.fRes='all'; } else state[t.dataset.clr]='all'; state.sel=null; return render(); }
   if(t.closest('#fSide')){ state.fSide = t.dataset.v; return render(); }

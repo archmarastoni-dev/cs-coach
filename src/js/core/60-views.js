@@ -15,7 +15,7 @@ function renderChrome(){
   const act = [['fMap', state.fMap!=='all' ? 'Mappa: '+mapName(state.fMap) : ''], ['fKind', state.fKind!=='all' ? 'Tipo: '+state.fKind : ''], ['fSide', state.fSide!=='all' ? 'Lato: '+state.fSide : ''], ['fRes', state.fRes!=='all' ? (state.fRes==='W'?'Solo vinte':'Solo perse') : '']].filter(x=>x[1]);
   $('#strip').innerHTML = `<span class="who">${who}</span>${act.map(([k,t])=>`<button type="button" class="fchip" data-clr="${k}" title="Togli questo filtro">${t} ✕</button>`).join('')}`;
   $('#fDot').hidden = !act.length; $('#fBtn').firstChild.textContent = act.length ? 'Filtri · '+act.length : 'Filtri';
-  $('#moreItems').innerHTML = `<button type="button" class="mitem" id="btnImp">Importa dati…</button><button type="button" class="mitem" data-learn="${state.learn.on?0:1}">${state.learn.on?'← Torna all\'analisi':'📚 E-learning'}</button>`;
+  $('#moreItems').innerHTML = `<button type="button" class="mitem" id="btnImp">Importa dati…</button><button type="button" class="mitem" data-learn="${state.learn.on?0:1}">${state.learn.on?'← Torna all\'analisi':'E-learning'}</button>`;
   $('#tabs').innerHTML = TABS.map(([k,t])=>`<button role="tab" data-tab="${k}" aria-selected="${state.tab===k}">${t}</button>`).join('');
 }
 
@@ -45,25 +45,24 @@ function trendSVG(ms, side, key){
   let g=''; for(let i=0;i<=3;i++){ const v=lo+(hi-lo)*i/3; g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end" fill="var(--ink-3)" font-size="11">${v.toFixed(dec)}</text>`; }
   const step = Math.max(1, Math.ceil(pts.length/12));
   const path = pts.map((p,i)=>`${i?'L':'M'}${X(i)} ${Y(p.v)}`).join('');
-  // moving average of the last MA_N matches: a line that moves up when you improve and down when you get worse
-  const MA_N = 15, N = pts.length >= MA_N + 2 ? MA_N : (pts.length >= 8 ? Math.max(4, Math.floor(pts.length/2)) : 0);
+  // running average from the first match to each match: it moves around the fixed total average (dashed) and shows the historical drift
+  const N = pts.length >= 8 ? 3 : 0, RN = Math.min(10, Math.max(3, Math.floor(pts.length/2)));
   let maSvg = '', chip = '';
   if(N){
-    const ma = pts.map((p,i)=> i < N-1 ? null : vs.slice(i-N+1, i+1).reduce((a,b)=>a+b,0)/N);
+    let acc = 0; const ma = vs.map((v,i)=>{ acc += v; return i < N-1 ? null : acc/(i+1); });
     const ix = ma.map((v,i)=>v==null?null:i).filter(i=>i!=null), i0 = ix[0], i1 = ix[ix.length-1];
     maSvg = `<path d="${ix.map((i,j)=>`${j?'L':'M'}${X(i)} ${Y(ma[i])}`).join('')}" fill="none" stroke="var(--warn)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${X(i0)}" cy="${Y(ma[i0])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/><text x="${X(i0)}" y="${Y(ma[i0])-12}" text-anchor="middle" fill="var(--warn)" font-size="12" font-weight="700">${ma[i0].toFixed(dec)}</text>
-      <circle cx="${X(i1)}" cy="${Y(ma[i1])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/><text x="${X(i1)-8}" y="${Y(ma[i1])+22}" text-anchor="end" fill="var(--warn)" font-size="12" font-weight="700">oggi ${ma[i1].toFixed(dec)}</text>`;
-    const d = ma[i1] - ma[i0], flat = Math.abs(d) < Math.pow(10,-dec)/2;
-    chip = `<div class="tchip"><span class="chip ${flat?'flat':d>0?'up':'down'}">${flat?'▬ stabile':(d>0?'▲ ':'▼ ')+Math.abs(d).toFixed(dec)} dalla partita #${idxOf(pts[i0].m)}</span></div>`;
+      <circle cx="${X(i1)}" cy="${Y(ma[i1])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/>`;
+    const rec = vs.slice(-RN).reduce((a,b)=>a+b,0)/RN, d = rec - avg, flat = Math.abs(d) < Math.pow(10,-dec)/2;
+    chip = `<div class="tchip"><span class="chip ${flat?'flat':d>0?'up':'down'}">${flat?'▬ in linea con la media':(d>0?'▲ ':'▼ ')+Math.abs(d).toFixed(dec)+(d>0?' sopra':' sotto')+' la media totale'}</span><span class="sub" style="margin-left:8px">ultime ${RN} partite: ${rec.toFixed(dec)} · media totale: ${avg.toFixed(dec)}</span></div>`;
   }
   const dots = pts.map((p,i)=>{ const win = p.m.result==='W', tip = tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+p.m.score.us+'-'+p.m.score.them+' · '+lab+' '+p.v.toFixed(dec));
     return (win ? `<circle cx="${X(i)}" cy="${Y(p.v)}" r="5.5" fill="var(--good)" ${tip}/>` : `<circle cx="${X(i)}" cy="${Y(p.v)}" r="4.5" fill="var(--surface)" stroke="var(--bad)" stroke-width="2.2" ${tip}/>`)
     + (i%step===0||i===pts.length-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11.5">#${idxOf(p.m)}</text>`:''); }).join('');
   return `${chip}<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Andamento ${lab}">${g}
-    <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--ink-3)" stroke-dasharray="5 4"/>
+    <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--ink-2)" stroke-width="1.6" stroke-dasharray="6 4"/>
     <path d="${path}" fill="none" stroke="var(--line)" stroke-width="1.5"/>${dots}${maSvg}</svg>
-    <div class="legend"><span><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="var(--good)"/></svg> Vinta</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--bad)" stroke-width="2"/></svg> Persa</span>${N?`<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--warn)" stroke-width="3"/></svg> Media delle ultime ${N}</span>`:''}<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--ink-3)" stroke-dasharray="4 3"/></svg> Media totale ${avg.toFixed(dec)}</span></div>`;
+    <div class="legend"><span><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="var(--good)"/></svg> Vinta</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--bad)" stroke-width="2"/></svg> Persa</span>${N?`<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--warn)" stroke-width="3"/></svg> Media da inizio a oggi (si muove)</span>`:''}<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--ink-3)" stroke-dasharray="4 3"/></svg> Media totale ${avg.toFixed(dec)} (fissa)</span></div>`;
 }
 
 function profileCard(){

@@ -52,6 +52,6 @@ function matchErrors(m){
   return `${noFr?`<div class="note">${noFr===L.length?'Per questa partita non ci sono i fotogrammi':'Per '+noFr+' morti non ci sono i fotogrammi'}: si registrano solo per le demo analizzate dopo questo aggiornamento. Resta la mappa con la posizione di tutti al momento della morte.</div>`:''}
   <div class="card"><h2>Errori di questa partita</h2><div class="sub">${L.length} morti analizzate${top.length?'. Cause principali qui: '+top.map(k=>`<b>${ECAT[k]}</b> (${cnt[k]})`).join(', '):''}. Una morte può avere più cause; l'analisi su tutte le partite è nel tab "Errori e fix".</div></div>
   ${flTab}
-  ${L.map(it=>deathCard(it)).join('')}`;
+  ${(DV.cur = L.slice(), L.forEach((x,i)=>DV_IDX.set(x.e,i)), '')}${L.map(it=>deathCard(it)).join('')}`;
 }
 

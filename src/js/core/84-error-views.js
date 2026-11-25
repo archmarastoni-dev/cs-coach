@@ -89,10 +89,30 @@ function utilCoach(ms, L){
     </ul>
     <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div></details></div>`;
 }
+/* Viewer: opens one death large (map + 4 frames) and lets you go to the next/previous one without closing it */
+let DV = {list:[], i:0}; const DV_IDX = new Map();
+function dvShow(){
+  let el = document.getElementById('dv'); if(!el){ el = document.createElement('div'); el.id='dv'; document.body.appendChild(el); }
+  const it = DV.list[DV.i], n = DV.list.length, {m,e,rev} = it, c = e.c;
+  const causes = rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).filter(Boolean).join(', ') || 'nessuna causa evidente';
+  el.innerHTML = `<div class="dv-bg" data-dvclose="1"></div><div class="dv-box">
+    <div class="dv-top"><button class="btn" data-dvgo="-1" ${n>1?'':'disabled'}>‹ Prima</button><div class="dv-t"><b>${mapName(m.map)} · round ${e.r} · ${e.side==='T'?'T':'CT'}</b><span>${esc(c.pl||'?')} · ucciso da ${esc(e.killer)} (${esc(wname(e.w))}, ${f1(e.dist,0)} m) · ${causes}</span></div><span class="dv-n">${DV.i+1} di ${n}</span><button class="btn" data-dvgo="1" ${n>1?'':'disabled'}>Dopo ›</button><button class="btn" data-dvclose="1" aria-label="Chiudi">Chiudi ✕</button></div>
+    <div class="dv-body"><div class="dv-main">${deathRadar(m,e)}<div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari</span></div></div>
+    <div class="dv-fr">${framesStrip(m,e)||'<div class="sub">Fotogrammi non disponibili per questa morte.</div>'}</div></div>
+    <div class="dv-hint">Frecce ← → per scorrere, Esc per chiudere</div></div>`;
+  el.style.display='flex';
+}
+function dvOpen(i){ const L = DV.cur || []; if(!L.length || i<0) return; DV.list = L; DV.i = Math.min(i, L.length-1); dvShow(); }
+function dvClose(){ const el=document.getElementById('dv'); if(el) el.style.display='none'; }
+function dvGo(d){ DV.i = (DV.i + d + DV.list.length) % DV.list.length; dvShow(); const b=document.querySelector('#dv .dv-body'); if(b) b.scrollTop=0; }
+document.addEventListener('keydown', e => {
+  const el=document.getElementById('dv'); if(!el || el.style.display==='none') return;
+  if(e.key==='Escape') dvClose(); else if(e.key==='ArrowRight') dvGo(1); else if(e.key==='ArrowLeft') dvGo(-1);
+});
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;
   const bad = rev.some(r=>r.sev==='alta'), tag = e.traded ? 'tradata' : 'non tradata';
-  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div class="dleft"><div class="dstick">${deathRadar(m,e)}
+  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div class="dleft"><div class="dstick"><div class="dzoom" data-dv="${DV_IDX.get(e)??-1}" title="Clicca per ingrandire e scorrere le morti">${deathRadar(m,e)}<span class="dzbtn">Ingrandisci e scorri ›</span></div>
       <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div></div>
     <div class="dright"><div class="dhead"><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
       <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div></div>

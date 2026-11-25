@@ -61,7 +61,7 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:6px;
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 11px;cursor:pointer}
 .btn:hover{border-color:var(--accent)}
 button:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-nav.tabs{display:flex;gap:2px;overflow-x:auto;margin-left:6px;align-self:stretch}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;margin-left:6px;align-self:stretch}
 nav.tabs button{border:0;background:transparent;padding:0 10px;cursor:pointer;color:var(--ink-2);font-size:14.5px;font-weight:500;white-space:nowrap;position:relative;min-height:56px}
 nav.tabs button[aria-selected="true"]{color:var(--ink);font-weight:600}
 nav.tabs button[aria-selected="true"]::after{content:"";position:absolute;left:9px;right:9px;bottom:-1px;height:2px;background:var(--accent)}
@@ -239,6 +239,22 @@ details.fold .ft{font-family:var(--font-d);font-size:20px;font-weight:600;letter
 details.fold .fb{margin-top:8px}
 @media(max-width:700px){.arow{grid-template-columns:1fr;gap:2px}}
 .fg .seg{width:max-content}
+/* death viewer */
+.dzoom{position:relative;cursor:zoom-in;border-radius:10px;overflow:hidden}
+.dzoom .dzbtn{position:absolute;right:8px;bottom:8px;background:rgba(13,17,23,.85);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 9px;font-size:12px;font-weight:600}
+.dzoom:hover .dzbtn{background:var(--accent-bg);color:var(--accent-fg)}
+#dv{position:fixed;inset:0;z-index:9998;display:none;align-items:center;justify-content:center}
+.dv-bg{position:absolute;inset:0;background:rgba(0,0,0,.82)}
+.dv-box{position:relative;width:min(1240px,96vw);max-height:94vh;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.dv-top{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dv-t{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px}.dv-t span{color:var(--ink-2);font-size:13px}
+.dv-n{color:var(--ink-3);font-size:13px;white-space:nowrap}
+.dv-body{display:grid;grid-template-columns:minmax(280px,5fr) 7fr;gap:16px;padding:14px;overflow:auto}
+.dv-main .radar{width:100%;height:auto;max-height:70vh;border-radius:8px}
+.dv-fr>div{margin-top:0!important}.dv-fr .frames{grid-template-columns:repeat(2,1fr)}
+.dv-hint{padding:6px 12px;color:var(--ink-3);font-size:12px;border-top:1px solid var(--line);text-align:center}
+@media(max-width:820px){.dv-body{grid-template-columns:1fr}}
+nav.tabs::-webkit-scrollbar{display:none}
 </style>
 <style>
 /* E-learning, in-app image viewer and match-analysis styles */
@@ -578,7 +594,7 @@ function renderChrome(){
   const act = [['fMap', state.fMap!=='all' ? 'Mappa: '+mapName(state.fMap) : ''], ['fKind', state.fKind!=='all' ? 'Tipo: '+state.fKind : ''], ['fSide', state.fSide!=='all' ? 'Lato: '+state.fSide : ''], ['fRes', state.fRes!=='all' ? (state.fRes==='W'?'Solo vinte':'Solo perse') : '']].filter(x=>x[1]);
   $('#strip').innerHTML = `<span class="who">${who}</span>${act.map(([k,t])=>`<button type="button" class="fchip" data-clr="${k}" title="Togli questo filtro">${t} ✕</button>`).join('')}`;
   $('#fDot').hidden = !act.length; $('#fBtn').firstChild.textContent = act.length ? 'Filtri · '+act.length : 'Filtri';
-  $('#moreItems').innerHTML = `<button type="button" class="mitem" id="btnImp">Importa dati…</button><button type="button" class="mitem" data-learn="${state.learn.on?0:1}">${state.learn.on?'← Torna all\'analisi':'📚 E-learning'}</button>`;
+  $('#moreItems').innerHTML = `<button type="button" class="mitem" id="btnImp">Importa dati…</button><button type="button" class="mitem" data-learn="${state.learn.on?0:1}">${state.learn.on?'← Torna all\'analisi':'E-learning'}</button>`;
   $('#tabs').innerHTML = TABS.map(([k,t])=>`<button role="tab" data-tab="${k}" aria-selected="${state.tab===k}">${t}</button>`).join('');
 }
 
@@ -608,25 +624,24 @@ function trendSVG(ms, side, key){
   let g=''; for(let i=0;i<=3;i++){ const v=lo+(hi-lo)*i/3; g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end" fill="var(--ink-3)" font-size="11">${v.toFixed(dec)}</text>`; }
   const step = Math.max(1, Math.ceil(pts.length/12));
   const path = pts.map((p,i)=>`${i?'L':'M'}${X(i)} ${Y(p.v)}`).join('');
-  // moving average of the last MA_N matches: a line that moves up when you improve and down when you get worse
-  const MA_N = 15, N = pts.length >= MA_N + 2 ? MA_N : (pts.length >= 8 ? Math.max(4, Math.floor(pts.length/2)) : 0);
+  // running average from the first match to each match: it moves around the fixed total average (dashed) and shows the historical drift
+  const N = pts.length >= 8 ? 3 : 0, RN = Math.min(10, Math.max(3, Math.floor(pts.length/2)));
   let maSvg = '', chip = '';
   if(N){
-    const ma = pts.map((p,i)=> i < N-1 ? null : vs.slice(i-N+1, i+1).reduce((a,b)=>a+b,0)/N);
+    let acc = 0; const ma = vs.map((v,i)=>{ acc += v; return i < N-1 ? null : acc/(i+1); });
     const ix = ma.map((v,i)=>v==null?null:i).filter(i=>i!=null), i0 = ix[0], i1 = ix[ix.length-1];
     maSvg = `<path d="${ix.map((i,j)=>`${j?'L':'M'}${X(i)} ${Y(ma[i])}`).join('')}" fill="none" stroke="var(--warn)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${X(i0)}" cy="${Y(ma[i0])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/><text x="${X(i0)}" y="${Y(ma[i0])-12}" text-anchor="middle" fill="var(--warn)" font-size="12" font-weight="700">${ma[i0].toFixed(dec)}</text>
-      <circle cx="${X(i1)}" cy="${Y(ma[i1])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/><text x="${X(i1)-8}" y="${Y(ma[i1])+22}" text-anchor="end" fill="var(--warn)" font-size="12" font-weight="700">oggi ${ma[i1].toFixed(dec)}</text>`;
-    const d = ma[i1] - ma[i0], flat = Math.abs(d) < Math.pow(10,-dec)/2;
-    chip = `<div class="tchip"><span class="chip ${flat?'flat':d>0?'up':'down'}">${flat?'▬ stabile':(d>0?'▲ ':'▼ ')+Math.abs(d).toFixed(dec)} dalla partita #${idxOf(pts[i0].m)}</span></div>`;
+      <circle cx="${X(i1)}" cy="${Y(ma[i1])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/>`;
+    const rec = vs.slice(-RN).reduce((a,b)=>a+b,0)/RN, d = rec - avg, flat = Math.abs(d) < Math.pow(10,-dec)/2;
+    chip = `<div class="tchip"><span class="chip ${flat?'flat':d>0?'up':'down'}">${flat?'▬ in linea con la media':(d>0?'▲ ':'▼ ')+Math.abs(d).toFixed(dec)+(d>0?' sopra':' sotto')+' la media totale'}</span><span class="sub" style="margin-left:8px">ultime ${RN} partite: ${rec.toFixed(dec)} · media totale: ${avg.toFixed(dec)}</span></div>`;
   }
   const dots = pts.map((p,i)=>{ const win = p.m.result==='W', tip = tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+p.m.score.us+'-'+p.m.score.them+' · '+lab+' '+p.v.toFixed(dec));
     return (win ? `<circle cx="${X(i)}" cy="${Y(p.v)}" r="5.5" fill="var(--good)" ${tip}/>` : `<circle cx="${X(i)}" cy="${Y(p.v)}" r="4.5" fill="var(--surface)" stroke="var(--bad)" stroke-width="2.2" ${tip}/>`)
     + (i%step===0||i===pts.length-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11.5">#${idxOf(p.m)}</text>`:''); }).join('');
   return `${chip}<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Andamento ${lab}">${g}
-    <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--ink-3)" stroke-dasharray="5 4"/>
+    <line x1="${pl}" x2="${W-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--ink-2)" stroke-width="1.6" stroke-dasharray="6 4"/>
     <path d="${path}" fill="none" stroke="var(--line)" stroke-width="1.5"/>${dots}${maSvg}</svg>
-    <div class="legend"><span><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="var(--good)"/></svg> Vinta</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--bad)" stroke-width="2"/></svg> Persa</span>${N?`<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--warn)" stroke-width="3"/></svg> Media delle ultime ${N}</span>`:''}<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--ink-3)" stroke-dasharray="4 3"/></svg> Media totale ${avg.toFixed(dec)}</span></div>`;
+    <div class="legend"><span><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="var(--good)"/></svg> Vinta</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--bad)" stroke-width="2"/></svg> Persa</span>${N?`<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--warn)" stroke-width="3"/></svg> Media da inizio a oggi (si muove)</span>`:''}<span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--ink-3)" stroke-dasharray="4 3"/></svg> Media totale ${avg.toFixed(dec)} (fissa)</span></div>`;
 }
 
 function profileCard(){
@@ -1566,7 +1581,7 @@ function matchErrors(m){
   return `${noFr?`<div class="note">${noFr===L.length?'Per questa partita non ci sono i fotogrammi':'Per '+noFr+' morti non ci sono i fotogrammi'}: si registrano solo per le demo analizzate dopo questo aggiornamento. Resta la mappa con la posizione di tutti al momento della morte.</div>`:''}
   <div class="card"><h2>Errori di questa partita</h2><div class="sub">${L.length} morti analizzate${top.length?'. Cause principali qui: '+top.map(k=>`<b>${ECAT[k]}</b> (${cnt[k]})`).join(', '):''}. Una morte può avere più cause; l'analisi su tutte le partite è nel tab "Errori e fix".</div></div>
   ${flTab}
-  ${L.map(it=>deathCard(it)).join('')}`;
+  ${(DV.cur = L.slice(), L.forEach((x,i)=>DV_IDX.set(x.e,i)), '')}${L.map(it=>deathCard(it)).join('')}`;
 }
 </script>
 <script>
@@ -1661,10 +1676,30 @@ function utilCoach(ms, L){
     </ul>
     <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div></details></div>`;
 }
+/* Viewer: opens one death large (map + 4 frames) and lets you go to the next/previous one without closing it */
+let DV = {list:[], i:0}; const DV_IDX = new Map();
+function dvShow(){
+  let el = document.getElementById('dv'); if(!el){ el = document.createElement('div'); el.id='dv'; document.body.appendChild(el); }
+  const it = DV.list[DV.i], n = DV.list.length, {m,e,rev} = it, c = e.c;
+  const causes = rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).filter(Boolean).join(', ') || 'nessuna causa evidente';
+  el.innerHTML = `<div class="dv-bg" data-dvclose="1"></div><div class="dv-box">
+    <div class="dv-top"><button class="btn" data-dvgo="-1" ${n>1?'':'disabled'}>‹ Prima</button><div class="dv-t"><b>${mapName(m.map)} · round ${e.r} · ${e.side==='T'?'T':'CT'}</b><span>${esc(c.pl||'?')} · ucciso da ${esc(e.killer)} (${esc(wname(e.w))}, ${f1(e.dist,0)} m) · ${causes}</span></div><span class="dv-n">${DV.i+1} di ${n}</span><button class="btn" data-dvgo="1" ${n>1?'':'disabled'}>Dopo ›</button><button class="btn" data-dvclose="1" aria-label="Chiudi">Chiudi ✕</button></div>
+    <div class="dv-body"><div class="dv-main">${deathRadar(m,e)}<div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari</span></div></div>
+    <div class="dv-fr">${framesStrip(m,e)||'<div class="sub">Fotogrammi non disponibili per questa morte.</div>'}</div></div>
+    <div class="dv-hint">Frecce ← → per scorrere, Esc per chiudere</div></div>`;
+  el.style.display='flex';
+}
+function dvOpen(i){ const L = DV.cur || []; if(!L.length || i<0) return; DV.list = L; DV.i = Math.min(i, L.length-1); dvShow(); }
+function dvClose(){ const el=document.getElementById('dv'); if(el) el.style.display='none'; }
+function dvGo(d){ DV.i = (DV.i + d + DV.list.length) % DV.list.length; dvShow(); const b=document.querySelector('#dv .dv-body'); if(b) b.scrollTop=0; }
+document.addEventListener('keydown', e => {
+  const el=document.getElementById('dv'); if(!el || el.style.display==='none') return;
+  if(e.key==='Escape') dvClose(); else if(e.key==='ArrowRight') dvGo(1); else if(e.key==='ArrowLeft') dvGo(-1);
+});
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;
   const bad = rev.some(r=>r.sev==='alta'), tag = e.traded ? 'tradata' : 'non tradata';
-  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div class="dleft"><div class="dstick">${deathRadar(m,e)}
+  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div class="dleft"><div class="dstick"><div class="dzoom" data-dv="${DV_IDX.get(e)??-1}" title="Clicca per ingrandire e scorrere le morti">${deathRadar(m,e)}<span class="dzbtn">Ingrandisci e scorri ›</span></div>
       <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div></div>
     <div class="dright"><div class="dhead"><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
       <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div></div>
@@ -5964,6 +5999,9 @@ window.addEventListener('popstate', e => {
   navButtons();
   window.scrollTo(0, s.y || 0);
 });
+/* remembers the scroll position of each view, so going back from a map or from E-learning returns to the same spot */
+const SCROLL_MEM = {};
+function keepScroll(change){ SCROLL_MEM[JSON.stringify(navSnap())] = window.scrollY; change(); render(); window.scrollTo(0, SCROLL_MEM[JSON.stringify(navSnap())] || 0); }
 function render(){
   NAV.leaveY = window.scrollY;
   renderChrome();
@@ -5995,12 +6033,15 @@ document.addEventListener('click', e => {
   const lbT = e.target.closest('[data-lbthrow]'); if(lbT && !LITE){ const [m,i]=lbT.dataset.lbthrow.split('|'); return lbThrow(m,+i); }
   const lbX = e.target.closest('[data-lbclose]'); if(lbX){ return lbClose(); }
   const lbG = e.target.closest('[data-lbgo]'); if(lbG){ return lbGo(+lbG.dataset.lbgo); }
+  const dvO = e.target.closest('[data-dv]'); if(dvO){ return dvOpen(+dvO.dataset.dv); }
+  const dvX = e.target.closest('[data-dvclose]'); if(dvX){ return dvClose(); }
+  const dvG = e.target.closest('[data-dvgo]'); if(dvG){ return dvGo(+dvG.dataset.dvgo); }
   const t = e.target.closest('button,tr,th,input,[data-tab]'); if(!t) return;
-  if(t.dataset.learn){ state.learn.on = t.dataset.learn==='1'; state.learn.map = null; render(); return window.scrollTo(0,0); }
+  if(t.dataset.learn){ return keepScroll(()=>{ state.learn.on = t.dataset.learn==='1'; state.learn.map = null; }); }
   if(t.dataset.lpath){ state.learn.path = t.dataset.lpath; return render(); }
-  if(t.dataset.lmap){ state.learn.map = t.dataset.lmap; render(); return window.scrollTo(0,0); }
+  if(t.dataset.lmap){ return keepScroll(()=>{ state.learn.map = t.dataset.lmap; }); }
   if(t.dataset.copy){ copyText(t.dataset.copy).then(ok=>{ const o=t.textContent; t.textContent = ok?'Copiato!':'Non copiato: selezionalo a mano'; setTimeout(()=>{t.textContent=o},1600); }); return; }
-  if(t.dataset.lback){ state.learn.map = null; render(); return window.scrollTo(0,0); }
+  if(t.dataset.lback){ return keepScroll(()=>{ state.learn.map = null; }); }
   if(t.dataset.tab){ state.learn.on = false; return setTab(t.dataset.tab); }
   if(t.dataset.clr){ if(t.dataset.clr==='all'){ state.fMap='all'; state.fKind='all'; state.fSide='all'; state.fRes='all'; } else state[t.dataset.clr]='all'; state.sel=null; return render(); }
   if(t.closest('#fSide')){ state.fSide = t.dataset.v; return render(); }

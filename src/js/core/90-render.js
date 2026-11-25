@@ -58,6 +58,9 @@ window.addEventListener('popstate', e => {
   navButtons();
   window.scrollTo(0, s.y || 0);
 });
+/* remembers the scroll position of each view, so going back from a map or from E-learning returns to the same spot */
+const SCROLL_MEM = {};
+function keepScroll(change){ SCROLL_MEM[JSON.stringify(navSnap())] = window.scrollY; change(); render(); window.scrollTo(0, SCROLL_MEM[JSON.stringify(navSnap())] || 0); }
 function render(){
   NAV.leaveY = window.scrollY;
   renderChrome();
