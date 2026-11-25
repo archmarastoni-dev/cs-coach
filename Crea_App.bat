@@ -16,8 +16,8 @@ echo Installing the required tools (one time only)...
 %PY% -m pip install pywebview pyinstaller demoparser2 pandas zstandard
 if errorlevel 1 goto err
 echo Building the application...
-%PY% -m PyInstaller --noconfirm --clean --onedir --windowed --icon icona.ico --name CSCoach ^
-  --add-data "dashboard_template.html;." --add-data "icona.ico;." ^
+%PY% -m PyInstaller --noconfirm --clean --onedir --windowed --icon icona_statistiche.ico --name CSCoach ^
+  --add-data "dashboard_template.html;." --add-data "icona_statistiche.ico;." ^
   --hidden-import cs_parser --hidden-import cs_coach ^
   --collect-all demoparser2 --collect-all webview --collect-submodules zstandard ^
   cs_coach_app.py

@@ -128,10 +128,34 @@ def update(cfg):
         STATE["busy"] = False
 
 
+# Keeps the mouse "back" button (and Alt+Left) from going back to the start-up splash screen.
+TRAP_BACK = "if(!window.__csTrap){window.__csTrap=1;history.pushState(null,'',location.href);" \
+            "window.addEventListener('popstate',function(){history.pushState(null,'',location.href);});}"
+
+
 def show_dashboard():
     w = STATE["win"]
     STATE["splash"] = False
-    w.load_url(HTML.as_uri())
+    # replace (not add to) the history entry, so there is no splash page to go back to
+    w.evaluate_js("location.replace(" + json.dumps(HTML.as_uri()) + ")")
+
+
+def on_loaded():
+    if not STATE["splash"]:
+        try:
+            STATE["win"].evaluate_js(TRAP_BACK)
+        except Exception:
+            pass
+
+
+def set_icon():
+    """Window / taskbar icon (Windows): the icon file is bundled next to the program."""
+    ico = BUNDLE / "icona_statistiche.ico"
+    try:
+        import System.Drawing as SD                      # provided by pythonnet, which pywebview uses on Windows
+        STATE["win"].native.Icon = SD.Icon(str(ico))
+    except Exception as e:
+        print("icon not set:", repr(e))
 
 
 def worker(cfg):
@@ -152,6 +176,8 @@ def main():
     cfg.setdefault("folders", [])
     win = webview.create_window("CS Coach", html=SPLASH, width=1320, height=860, min_size=(900, 600))
     STATE["win"] = win
+    win.events.loaded += on_loaded
+    win.events.shown += set_icon
 
     def refresh_now():
         threading.Thread(target=lambda: (update(cfg) , show_dashboard()), daemon=True).start()
