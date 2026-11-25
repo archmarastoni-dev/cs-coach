@@ -149,7 +149,8 @@ def process(folders, db, db_path, html_path, delete, failed):
     for src in find_demos(folders):
         key = f"{src.name}|{src.stat().st_size}"
         redo = key in db["processed"] and key not in failed and needs_context(db, src)
-        if (key in db["processed"] and not redo) or key in failed:
+        # with --delete a demo that shows up again was put back on purpose (e.g. to re-read it): parse it again
+        if (key in db["processed"] and not redo and not delete) or key in failed:
             if delete and key in db["processed"]:
                 try:
                     src.unlink()
@@ -185,7 +186,19 @@ def process(folders, db, db_path, html_path, delete, failed):
                 log("  updated with the per-death detail.")
                 new += 1
             elif m["fp"] in known or m["id"] in known or (m.get("valve_id") and m["valve_id"] in known):
-                log("  already in the archive (same match), not adding it.")
+                # same match already archived (maybe read badly by an older version): the fresh reading replaces it
+                old = next((x for x in db["matches"] if x.get("fp") == m["fp"] or x.get("id") == m["id"]
+                            or (m.get("valve_id") and x.get("valve_id") == m["valve_id"])), None)
+                if old is None:
+                    log("  already in the archive as a scoreboard-only entry, not adding it.")
+                else:
+                    for k in ("played", "valve_id", "added"):
+                        if old.get(k) and not m.get(k):
+                            m[k] = old[k]
+                    db["matches"][db["matches"].index(old)] = m
+                    db["matches"].sort(key=lambda x: (x.get("played", ""), x["patch"], x.get("added", "")))
+                    new += 1
+                    log(f"  already in the archive: replaced with the new reading ({m['map']} {m['score']['us']}-{m['score']['them']}).")
             else:
                 db["matches"].append(m)
                 db["matches"].sort(key=lambda x: (x.get("played", ""), x["patch"], x.get("added", "")))
@@ -204,6 +217,7 @@ def process(folders, db, db_path, html_path, delete, failed):
                     log("  demo deleted from disk.")
                 except OSError as e:
                     log(f"  cannot delete the demo: {e}")
+                    failed.add(key)
         except SystemExit as e:
             log(f"  skipped: {e}")
             db["processed"].append(key)       # demo of another player: do not retry
