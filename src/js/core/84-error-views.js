@@ -97,7 +97,7 @@ function dvShow(){
   const causes = rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).filter(Boolean).join(', ') || 'nessuna causa evidente';
   el.innerHTML = `<div class="dv-bg" data-dvclose="1"></div><div class="dv-box">
     <div class="dv-top"><button class="btn" data-dvgo="-1" ${n>1?'':'disabled'}>‹ Prima</button><div class="dv-t"><b>${mapName(m.map)} · round ${e.r} · ${e.side==='T'?'T':'CT'}</b><span>${esc(c.pl||'?')} · ucciso da ${esc(e.killer)} (${esc(wname(e.w))}, ${f1(e.dist,0)} m) · ${causes}</span></div><span class="dv-n">${DV.i+1} di ${n}</span><button class="btn" data-dvgo="1" ${n>1?'':'disabled'}>Dopo ›</button><button class="btn" data-dvclose="1" aria-label="Chiudi">Chiudi ✕</button></div>
-    <div class="dv-body"><div class="dv-main">${deathRadar(m,e)}<div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari</span></div></div>
+    <div class="dv-body"><div class="dv-main">${deathRadar(m,e)}<div class="leg"><span><i style="background:#ffd34d"></i>Tu: ✕ = dove sei morto, tratteggio = il tuo percorso</span><span><i style="background:#4aa3ff"></i>Compagni vivi (●)</span><span><i style="background:#ff5c5c"></i>Avversari vivi (●)</span></div></div>
     <div class="dv-fr">${framesStrip(m,e)||'<div class="sub">Fotogrammi non disponibili per questa morte.</div>'}</div></div>
     <div class="dv-hint">Frecce ← → per scorrere, Esc per chiudere</div></div>`;
   el.style.display='flex';
@@ -113,7 +113,7 @@ function deathCard(it){
   const {m,e,rev} = it, c = e.c;
   const bad = rev.some(r=>r.sev==='alta'), tag = e.traded ? 'tradata' : 'non tradata';
   return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div class="dleft"><div class="dstick"><div class="dzoom" data-dv="${DV_IDX.get(e)??-1}" title="Clicca per ingrandire e scorrere le morti">${deathRadar(m,e)}<span class="dzbtn">Ingrandisci e scorri ›</span></div>
-      <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div></div>
+      <div class="leg"><span><i style="background:#ffd34d"></i>Tu: ✕ = dove sei morto, tratteggio = il tuo percorso</span><span><i style="background:#4aa3ff"></i>Compagni vivi (●)</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div></div>
     <div class="dright"><div class="dhead"><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
       <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div></div>
       ${recentBlock(e)}

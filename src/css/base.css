@@ -248,3 +248,4 @@ details.fold .fb{margin-top:8px}
 .dv-hint{padding:6px 12px;color:var(--ink-3);font-size:12px;border-top:1px solid var(--line);text-align:center}
 @media(max-width:820px){.dv-body{grid-template-columns:1fr}}
 nav.tabs::-webkit-scrollbar{display:none}
+.hdr h1[data-tab]{cursor:pointer}.hdr h1[data-tab]:hover{color:var(--accent)}

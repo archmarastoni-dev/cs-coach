@@ -27,13 +27,13 @@ function framesStrip(m, e){
         const a1=[u+Math.cos(ang-w)*L, v+Math.sin(ang-w)*L], a2=[u+Math.cos(ang+w)*L, v+Math.sin(ang+w)*L];
         sh.push(`<polygon points="${u.toFixed(1)},${v.toFixed(1)} ${a1[0].toFixed(1)},${a1[1].toFixed(1)} ${a2[0].toFixed(1)},${a2[1].toFixed(1)}" fill="${col}" fill-opacity=".22"/>`);
       }
-      if(p[2]===0) sh.push(`<path d="M${u-R(10)} ${v-R(10)}L${u+R(10)} ${v+R(10)}M${u+R(10)} ${v-R(10)}L${u-R(10)} ${v+R(10)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round"/>`);
+      if(p[2]===0 && f.dt===0) sh.push(`<path d="M${u-R(10)} ${v-R(10)}L${u+R(10)} ${v+R(10)}M${u+R(10)} ${v-R(10)}L${u-R(10)} ${v+R(10)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round"/>`);
       else sh.push(`<circle cx="${u.toFixed(1)}" cy="${v.toFixed(1)}" r="${R(p[4]?10:8)}" fill="${col}" stroke="${p[4]?'#fff':'#000'}" stroke-width="${R(p[4]?3.5:2)}"/>`);
     }
     return `<figure style="margin:0"><div style="border-radius:8px;overflow:hidden">${radarSVG(map, sh, {vb: vb.map(v=>+v.toFixed(1)).join(' ')})}</div><figcaption class="sub" style="text-align:center;margin-top:4px">${f.dt===0?'Alla morte':'−'+Math.abs(f.dt)+' s'}</figcaption></figure>`;
   }).join('');
   return `<div style="margin-top:14px"><h3 style="margin:0 0 4px">Come si è sviluppata la situazione (da −3 s alla morte)</h3>
-    <div class="sub">Quattro fotogrammi dalla mappa 2D: ✕ giallo = tu, blu = compagni, rosso = avversari (bordo bianco = chi ti ha ucciso). I coni mostrano dove guardava ognuno. Cerchi: smoke (grigio), flash (giallo), HE (arancio), molotov (rosso).</div>
+    <div class="sub">Quattro fotogrammi dalla mappa 2D. Pallino = giocatore vivo, ✕ = morto (nell'ultimo fotogramma sei tu). Giallo = tu, blu = compagni, rosso = avversari (bordo bianco = chi ti ha ucciso). I coni mostrano dove guardava ognuno. Cerchi: smoke (grigio), flash (giallo), HE (arancio), molotov (rosso).</div>
     <div class="frames">${figs}</div></div>`;
 }
 

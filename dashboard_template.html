@@ -255,6 +255,7 @@ details.fold .fb{margin-top:8px}
 .dv-hint{padding:6px 12px;color:var(--ink-3);font-size:12px;border-top:1px solid var(--line);text-align:center}
 @media(max-width:820px){.dv-body{grid-template-columns:1fr}}
 nav.tabs::-webkit-scrollbar{display:none}
+.hdr h1[data-tab]{cursor:pointer}.hdr h1[data-tab]:hover{color:var(--accent)}
 </style>
 <style>
 /* E-learning, in-app image viewer and match-analysis styles */
@@ -317,7 +318,7 @@ nav.tabs::-webkit-scrollbar{display:none}
 <header class="top"><div class="wrap">
   <div class="hdr">
     <div class="navb"><button type="button" class="btn navbtn" id="navBack" title="Indietro" aria-label="Indietro">←</button><button type="button" class="btn navbtn" id="navFwd" title="Avanti" aria-label="Avanti">→</button></div>
-    <h1>CS Coach</h1>
+    <h1 data-tab="panoramica" title="Torna alla panoramica" role="link" tabindex="0">CS Coach</h1>
     <nav class="tabs" id="tabs" role="tablist"></nav>
     <div class="hact">
       <button type="button" class="btn" id="fBtn" aria-expanded="false" aria-controls="fpop">Filtri<i class="fdot" id="fDot" hidden></i> ▾</button>
@@ -1556,13 +1557,13 @@ function framesStrip(m, e){
         const a1=[u+Math.cos(ang-w)*L, v+Math.sin(ang-w)*L], a2=[u+Math.cos(ang+w)*L, v+Math.sin(ang+w)*L];
         sh.push(`<polygon points="${u.toFixed(1)},${v.toFixed(1)} ${a1[0].toFixed(1)},${a1[1].toFixed(1)} ${a2[0].toFixed(1)},${a2[1].toFixed(1)}" fill="${col}" fill-opacity=".22"/>`);
       }
-      if(p[2]===0) sh.push(`<path d="M${u-R(10)} ${v-R(10)}L${u+R(10)} ${v+R(10)}M${u+R(10)} ${v-R(10)}L${u-R(10)} ${v+R(10)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round"/>`);
+      if(p[2]===0 && f.dt===0) sh.push(`<path d="M${u-R(10)} ${v-R(10)}L${u+R(10)} ${v+R(10)}M${u+R(10)} ${v-R(10)}L${u-R(10)} ${v+R(10)}" stroke="#ffd34d" stroke-width="${R(6)}" stroke-linecap="round"/>`);
       else sh.push(`<circle cx="${u.toFixed(1)}" cy="${v.toFixed(1)}" r="${R(p[4]?10:8)}" fill="${col}" stroke="${p[4]?'#fff':'#000'}" stroke-width="${R(p[4]?3.5:2)}"/>`);
     }
     return `<figure style="margin:0"><div style="border-radius:8px;overflow:hidden">${radarSVG(map, sh, {vb: vb.map(v=>+v.toFixed(1)).join(' ')})}</div><figcaption class="sub" style="text-align:center;margin-top:4px">${f.dt===0?'Alla morte':'−'+Math.abs(f.dt)+' s'}</figcaption></figure>`;
   }).join('');
   return `<div style="margin-top:14px"><h3 style="margin:0 0 4px">Come si è sviluppata la situazione (da −3 s alla morte)</h3>
-    <div class="sub">Quattro fotogrammi dalla mappa 2D: ✕ giallo = tu, blu = compagni, rosso = avversari (bordo bianco = chi ti ha ucciso). I coni mostrano dove guardava ognuno. Cerchi: smoke (grigio), flash (giallo), HE (arancio), molotov (rosso).</div>
+    <div class="sub">Quattro fotogrammi dalla mappa 2D. Pallino = giocatore vivo, ✕ = morto (nell'ultimo fotogramma sei tu). Giallo = tu, blu = compagni, rosso = avversari (bordo bianco = chi ti ha ucciso). I coni mostrano dove guardava ognuno. Cerchi: smoke (grigio), flash (giallo), HE (arancio), molotov (rosso).</div>
     <div class="frames">${figs}</div></div>`;
 }
 
@@ -1684,7 +1685,7 @@ function dvShow(){
   const causes = rev.filter(r=>r.id!=='ok').map(r=>ECAT[r.id]).filter(Boolean).join(', ') || 'nessuna causa evidente';
   el.innerHTML = `<div class="dv-bg" data-dvclose="1"></div><div class="dv-box">
     <div class="dv-top"><button class="btn" data-dvgo="-1" ${n>1?'':'disabled'}>‹ Prima</button><div class="dv-t"><b>${mapName(m.map)} · round ${e.r} · ${e.side==='T'?'T':'CT'}</b><span>${esc(c.pl||'?')} · ucciso da ${esc(e.killer)} (${esc(wname(e.w))}, ${f1(e.dist,0)} m) · ${causes}</span></div><span class="dv-n">${DV.i+1} di ${n}</span><button class="btn" data-dvgo="1" ${n>1?'':'disabled'}>Dopo ›</button><button class="btn" data-dvclose="1" aria-label="Chiudi">Chiudi ✕</button></div>
-    <div class="dv-body"><div class="dv-main">${deathRadar(m,e)}<div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari</span></div></div>
+    <div class="dv-body"><div class="dv-main">${deathRadar(m,e)}<div class="leg"><span><i style="background:#ffd34d"></i>Tu: ✕ = dove sei morto, tratteggio = il tuo percorso</span><span><i style="background:#4aa3ff"></i>Compagni vivi (●)</span><span><i style="background:#ff5c5c"></i>Avversari vivi (●)</span></div></div>
     <div class="dv-fr">${framesStrip(m,e)||'<div class="sub">Fotogrammi non disponibili per questa morte.</div>'}</div></div>
     <div class="dv-hint">Frecce ← → per scorrere, Esc per chiudere</div></div>`;
   el.style.display='flex';
@@ -1700,7 +1701,7 @@ function deathCard(it){
   const {m,e,rev} = it, c = e.c;
   const bad = rev.some(r=>r.sev==='alta'), tag = e.traded ? 'tradata' : 'non tradata';
   return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div class="dleft"><div class="dstick"><div class="dzoom" data-dv="${DV_IDX.get(e)??-1}" title="Clicca per ingrandire e scorrere le morti">${deathRadar(m,e)}<span class="dzbtn">Ingrandisci e scorri ›</span></div>
-      <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div></div>
+      <div class="leg"><span><i style="background:#ffd34d"></i>Tu: ✕ = dove sei morto, tratteggio = il tuo percorso</span><span><i style="background:#4aa3ff"></i>Compagni vivi (●)</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div></div>
     <div class="dright"><div class="dhead"><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
       <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div></div>
       ${recentBlock(e)}
