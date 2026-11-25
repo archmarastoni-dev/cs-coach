@@ -259,7 +259,7 @@ function recentBlock(e){
   const f = fightOf(e), rc = f.rc;
   const body = rc.lines.length ? rc.lines.map(l=>`<p>• ${l.h}</p>`).join('') : `<p class="sub">${rc.full?'Nessun evento nei secondi attorno alla morte: il contatto è arrivato dopo una fase calma.':'Dettaglio non disponibile per questa partita (demo già cancellata prima di questa funzione): non ci sono tue azioni registrate negli ultimi 12 secondi.'}</p>`;
   const notes = f.notes.length ? `<p><b>Lettura:</b> ${f.notes.map(esc).join(' ')}</p>` : '';
-  return `<div class="iss ok" style="border-color:#9aa7b8"><h4>Cosa è successo prima e dopo (da −12 s a +6 s)</h4>${body}${notes}${!rc.full&&rc.lines.length?'<p class="sub">Qui compaiono solo le tue azioni: i dati di compagni e avversari esistono solo per le demo analizzate dopo questo aggiornamento.</p>':''}</div>`;
+  return `<div class="iss ok" style="--ic:#9aa7b8"><h4>Cosa è successo prima e dopo (da −12 s a +6 s)</h4>${body}${notes}${!rc.full&&rc.lines.length?'<p class="sub">Qui compaiono solo le tue azioni: i dati di compagni e avversari esistono solo per le demo analizzate dopo questo aggiornamento.</p>':''}</div>`;
 }
 function posAnalysis(e){
   const c = e.c; if(!c || !c.pos) return null;
@@ -350,5 +350,5 @@ function posSummary(L){
 }
 function posBlock(e){
   const R = posAnalysis(e); if(!R) return '';
-  return `<div class="iss ok" style="border-color:#c58bff"><h4>Peek e posizionamento</h4>${R.lines.map(l=>`<p>• ${l}</p>`).join('')}<p class="sub">${R.geo?'Linee di tiro e coperture calcolate con la geometria reale della mappa (solo muri e oggetti fissi, non smoke né porte).':'Linee di tiro e coperture reali richiedono la geometria della mappa (installa awpy, vedi LEGGIMI): qui le conclusioni usano solo le posizioni.'}</p></div>`;
+  return `<div class="iss ok" style="--ic:#c58bff"><h4>Peek e posizionamento</h4>${R.lines.map(l=>`<p>• ${l}</p>`).join('')}<p class="sub">${R.geo?'Linee di tiro e coperture calcolate con la geometria reale della mappa (solo muri e oggetti fissi, non smoke né porte).':'Linee di tiro e coperture reali richiedono la geometria della mappa (installa awpy, vedi LEGGIMI): qui le conclusioni usano solo le posizioni.'}</p></div>`;
 }

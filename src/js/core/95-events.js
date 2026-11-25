@@ -24,6 +24,11 @@ document.addEventListener('click', e => {
   if(LITE && (t.dataset.gotoMap||t.dataset.match||t.id==='btnImp')) return;
   if(t.dataset.gotoMap){ state.mapSel = t.dataset.gotoMap; return setTab('mappe'); }
   if(t.dataset.map){ state.mapSel = t.dataset.map; return render(); }
+  if(t.dataset.hedit){ state.hEdit = !state.hEdit; return render(); }
+  if(t.dataset.hreset){ state.fKind='all'; state.fMap='all'; state.fRes='all'; state.hFrom=''; state.hTo=''; return render(); }
+  if(t.dataset.hauto){ OV.order = []; OV.dates = {}; for(const m of state.matches) if(m.played0!==undefined){ m.played = m.played0; } ovSave(); state.matches.sort(cmpM); return render(); }
+  if(t.dataset.mv){ const [d,id] = t.dataset.mv.split('|'), i = state.matches.findIndex(x=>x.id===id), j = i + (+d);
+    if(i>=0 && j>=0 && j<state.matches.length){ const a = state.matches; [a[i],a[j]] = [a[j],a[i]]; OV.order = a.map(x=>x.id); ovSave(); } return render(); }
   if(t.dataset.sort){ const k = t.dataset.sort; if(state.sortKey===k) state.sortDir*=-1; else {state.sortKey=k; state.sortDir=(k==='map'||k==='idx')?1:-1;} return render(); }
   if(t.dataset.match){ state.sel = t.dataset.match; state.selView='analisi'; state.openRound=null; return render(); }
   if(t.dataset.back){ state.sel = null; return render(); }
@@ -35,7 +40,15 @@ document.addEventListener('click', e => {
   if(t.id==='uref'){ state.uRef = t.checked; return render(); }
 });
 document.addEventListener('change', e => {
-  if(e.target.id==='fMap'){ state.fMap = e.target.value; state.sel=null; render(); }
+  const id = e.target.id;
+  if(id==='fMap' || id==='hMap'){ state.fMap = e.target.value; state.sel=null; render(); }
+  if(id==='fKind' || id==='hKind'){ state.fKind = e.target.value; state.sel=null; render(); }
+  if(id==='hRes'){ state.fRes = e.target.value; render(); }
+  if(id==='hFrom'){ state.hFrom = e.target.value; render(); }
+  if(id==='hTo'){ state.hTo = e.target.value; render(); }
+  if(e.target.dataset.dateid){ const m = state.matches.find(x=>x.id===e.target.dataset.dateid), v = e.target.value;
+    if(m){ m.played0 = m.played0 || m.played || ''; const t = (m.played||'').slice(10) || 'T12:00:00'; if(v){ m.played = v+t; OV.dates[m.id] = m.played; } else { m.played = m.played0; delete OV.dates[m.id]; }
+      ovSave(); render(); } }
   if(e.target.id==='imp') importFile(e.target.files[0]);
 });
 function importFile(f){

@@ -39,7 +39,7 @@ except Exception:
 
 DEFAULT_FOLDER = "."
 DEFAULT_STEAMID = ""
-EXTS = (".dem", ".dem.bz2", ".dem.gz", ".dem.zst")
+EXTS = (".dem", ".dem.bz2", ".dem.gz", ".dem.zst", "_dem.bz2", "_dem.gz", "_dem.zst", "-dem.zst", "-dem.bz2", "-dem.gz")   # the "_dem" spelling appears when a site or upload renames the dot
 
 
 def log(msg):
@@ -113,7 +113,7 @@ def find_demos(folders):
 def decompress(src, tmpdir):
     name = src.name
     low = name.lower()
-    dst = Path(tmpdir) / (name.rsplit(".", 1)[0] if not low.endswith(".dem") else name)
+    dst = Path(tmpdir) / ("demo.dem" if not low.endswith(".dem") else name)
     if low.endswith(".bz2"):
         with bz2.open(src, "rb") as a, open(dst, "wb") as b:
             shutil.copyfileobj(a, b, 1 << 20)

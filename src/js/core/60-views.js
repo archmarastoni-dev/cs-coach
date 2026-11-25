@@ -5,9 +5,10 @@ function renderChrome(){
   if(LITE){ $('#who').textContent = (DATA.title||'')+' · '+state.matches.length+' partite recenti'; $('#filters').innerHTML=''; $('#tabs').style.display='none'; return; }
   $('#tabs').style.display = state.learn.on ? 'none' : '';
   $('#who').textContent = (state.matches[0] && me(state.matches[0]) ? me(state.matches[0]).name : '') + ' · ' + state.matches.length + (state.matches.length===1?' partita':' partite');
-  const maps = [...new Set(state.matches.map(m=>m.map))];
+  const maps = [...new Set(state.matches.map(m=>m.map))], kinds = [...new Set(state.matches.map(kindOf))];
   $('#filters').innerHTML = `
     <label>Mappa <select id="fMap"><option value="all">Tutte</option>${maps.map(m=>`<option value="${m}" ${state.fMap===m?'selected':''}>${mapName(m)}</option>`).join('')}</select></label>
+    ${kinds.length>1?`<label>Tipo <select id="fKind"><option value="all">Tutti</option>${kinds.map(k=>`<option value="${k}" ${state.fKind===k?'selected':''}>${k}</option>`).join('')}</select></label>`:''}
     <label>Lato <span class="seg" id="fSide">${['all','CT','T'].map(s=>`<button data-v="${s}" aria-pressed="${state.fSide===s}">${s==='all'?'Tutti':s}</button>`).join('')}</span></label>
     <label>Esito <span class="seg" id="fRes">${[['all','Tutti'],['W','Vinte'],['L','Perse']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.fRes===s}">${t}</button>`).join('')}</span></label>
     <label>Dati <span class="seg" id="mode">${[['base','Base'],['adv','Avanzati']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.mode===s}">${t}</button>`).join('')}</span></label>
@@ -108,8 +109,8 @@ function viewPanoramica(ms){
 }
 
 function liteCard(){
-  if(!state.lite.length || state.fMap!=='all') return '';
-  const L = state.lite.filter(l => state.fRes==='all' || l.result===state.fRes);
+  if(!state.lite.length || state.fMap!=='all' || state.fKind!=='all') return '';
+  const L = state.lite.filter(l => (state.fRes==='all' || l.result===state.fRes) && (!state.hFrom || (l.played||'').slice(0,10) >= state.hFrom) && (!state.hTo || (l.played||'').slice(0,10) <= state.hTo));
   const rows = L.map(l => `<tr><td>${dShort(l.played)}</td><td><span class="pill ${l.result}">${l.score.us}-${l.score.them}</span></td><td>${l.k}</td><td>${l.a}</td><td>${l.d}</td><td>${f1(l.k/Math.max(1,l.d),2)}</td><td>${pc(l.k?l.hs/l.k:NaN)}</td><td>${l.mvp}</td><td>${f1(l.rating,2)}</td><td>${Math.round(l.duration/60)} min</td></tr>`).join('');
   return `<div class="card"><h2>Partite senza demo</h2><div class="sub">Dati dal tabellone salvato da CS2 (file .info): risultato, kill, assist, morti, headshot e MVP. Mancano mappa, ADR, smoke e posizioni, perché servono i dati della demo. Il rating è una stima senza ADR.</div>
     <div class="scroll"><table><thead><tr><th>Data</th><th>Score</th><th>K</th><th>A</th><th>D</th><th>K/D</th><th>HS%</th><th>MVP</th><th>Rating</th><th>Durata</th></tr></thead><tbody>${rows}</tbody></table></div>${L.length?'':'<div class="empty">Nessuna partita con questi filtri.</div>'}</div>`;
@@ -127,15 +128,32 @@ function viewPartite(ms){
     state.sel = null;
   }
   const side = state.fSide, adv = state.mode==='adv';
+  const inRange = m => { const d = (m.played||'').slice(0,10); return (!state.hFrom || (d && d >= state.hFrom)) && (!state.hTo || (d && d <= state.hTo)); };
+  const total = ms.length; ms = ms.filter(inRange);
   const rows = ms.map(m => { const a = agg([m], side), u = utilAgg([m], side);
-    return {m, played: m.played||'', idx: idxOf(m), map: mapName(m.map), res: m.score.us - m.score.them, rating: a.rating, kd: a.kd, k: a.k, d: a.d, a: a.a, adr: a.adr, hs: a.hsP, kast: a.kastP, ok: a.okP, tr: a.trP, cl: a.clW, ef: u.ef}; });
+    return {m, played: m.played||'', idx: idxOf(m), kind: kindOf(m), map: mapName(m.map), res: m.score.us - m.score.them, rating: a.rating, kd: a.kd, k: a.k, d: a.d, a: a.a, adr: a.adr, hs: a.hsP, kast: a.kastP, ok: a.okP, tr: a.trP, cl: a.clW, ef: u.ef}; });
   const key = state.sortKey, dir = state.sortDir;
   rows.sort((x,y) => (x[key] > y[key] ? 1 : x[key] < y[key] ? -1 : 0) * dir);
-  const cols = [['idx','#'],['played','Data'],['map','Mappa'],['res','Score'],['rating','Rating'],['k','K'],['a','A'],['d','D'],['kd','K/D'],['adr','ADR'],['hs','HS%'],['kast','KAST']];
+  const ed = state.hEdit;
+  const cols = [['idx','#'],['played','Data'],['kind','Tipo'],['map','Mappa'],['res','Score'],['rating','Rating'],['k','K'],['a','A'],['d','D'],['kd','K/D'],['adr','ADR'],['hs','HS%'],['kast','KAST']];
   if(adv) cols.push(['ok','Apertura'],['tr','Trade'],['cl','Clutch'],['ef','Flash']);
-  const head = cols.map(([k,t])=>`<th class="sortable" data-sort="${k}" ${key===k?`aria-sort="${dir>0?'ascending':'descending'}"`:''}>${t}${key===k?(dir>0?' ▲':' ▼'):''}</th>`).join('');
-  const body = rows.map(r => `<tr class="click" data-match="${r.m.id}"><td>${r.idx}</td><td>${dShort(r.played)}</td><td>${r.map}</td><td><span class="pill ${r.m.result}">${r.m.score.us}-${r.m.score.them}</span></td><td>${f1(r.rating,2)}</td><td>${r.k}</td><td>${r.a}</td><td>${r.d}</td><td>${f1(r.kd,2)}</td><td>${f1(r.adr,0)}</td><td>${pc(r.hs)}</td><td>${pc(r.kast)}</td>${adv?`<td>${pc(r.ok)}</td><td>${pc(r.tr)}</td><td>${r.cl}</td><td>${r.ef}</td>`:''}</tr>`).join('');
-  return `<div class="card"><h2>Storico partite</h2><div class="sub">Clicca una partita per scoreboard, round per round e mappa. Le più recenti sono in alto (clicca un'intestazione per cambiare l'ordine). Se non c'è il file .info accanto alla demo, la data non è disponibile e l'ordine è approssimativo.</div>
+  const head = cols.map(([k,t])=>!k?`<th>${t}</th>`:`<th class="sortable" data-sort="${k}" ${key===k?`aria-sort="${dir>0?'ascending':'descending'}"`:''}>${t}${key===k?(dir>0?' ▲':' ▼'):''}</th>`).join('');
+  if(ed) cols.push(['','Ordine']);
+  const body = rows.map(r => `<tr class="click" data-match="${r.m.id}"><td>${r.idx}</td><td>${ed?`<input type="date" class="hdate" data-dateid="${r.m.id}" value="${(r.played||'').slice(0,10)}">`:dShort(r.played)}</td><td><span class="kind k-${r.kind}">${r.kind}</span></td><td>${r.map}</td><td><span class="pill ${r.m.result}">${r.m.score.us}-${r.m.score.them}</span></td><td>${f1(r.rating,2)}</td><td>${r.k}</td><td>${r.a}</td><td>${r.d}</td><td>${f1(r.kd,2)}</td><td>${f1(r.adr,0)}</td><td>${pc(r.hs)}</td><td>${pc(r.kast)}</td>${adv?`<td>${pc(r.ok)}</td><td>${pc(r.tr)}</td><td>${r.cl}</td><td>${r.ef}</td>`:''}${ed?`<td class="nowrap"><button class="btn mv" data-mv="-1|${r.m.id}" title="Scambia con la partita precedente (numero più basso)">▲</button> <button class="btn mv" data-mv="1|${r.m.id}" title="Scambia con la partita successiva (numero più alto)">▼</button></td>`:''}</tr>`).join('');
+  const kinds = [...new Set(state.matches.map(kindOf))], maps = [...new Set(state.matches.map(m=>m.map))];
+  const filt = state.fKind!=='all' || state.fMap!=='all' || state.fRes!=='all' || state.hFrom || state.hTo;
+  const bar = `<div class="hbar">
+    <label>Tipo <select id="hKind"><option value="all">Tutti</option>${kinds.map(k=>`<option value="${k}" ${state.fKind===k?'selected':''}>${k}</option>`).join('')}</select></label>
+    <label>Mappa <select id="hMap"><option value="all">Tutte</option>${maps.map(m=>`<option value="${m}" ${state.fMap===m?'selected':''}>${mapName(m)}</option>`).join('')}</select></label>
+    <label>Esito <select id="hRes">${[['all','Tutti'],['W','Vinte'],['L','Perse']].map(([v,t])=>`<option value="${v}" ${state.fRes===v?'selected':''}>${t}</option>`).join('')}</select></label>
+    <label>Dal <input type="date" id="hFrom" value="${state.hFrom}"></label>
+    <label>Al <input type="date" id="hTo" value="${state.hTo}"></label>
+    ${filt?'<button class="btn" data-hreset="1">Azzera filtri</button>':''}
+    <span class="hcount">${rows.length} di ${state.matches.length} partite</span>
+    <button class="btn ${ed?'on':''}" data-hedit="1" aria-pressed="${ed}">${ed?'Fine modifica':'Modifica numero e data'}</button>
+  </div>${ed?`<div class="note">Modifica attiva: con ▲ e ▼ scambi una partita con la precedente o la successiva (cambia il numero #), e puoi correggere la data. Le modifiche restano in questo programma sul tuo computer. <button class="btn" data-hauto="1">Ripristina ordine automatico</button></div>`:''}`;
+  return `<div class="card"><h2>Storico partite</h2><div class="sub">Clicca una partita per scoreboard, round per round e mappa. Clicca un'intestazione per cambiare l'ordine della tabella. Il numero # segue la data; se manca il file .info la data non è disponibile e l'ordine è approssimativo: in quel caso usa "Modifica numero e data".</div>
+    ${bar}
     <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body || ''}</tbody></table></div>${rows.length?'':'<div class="empty">Nessuna partita con questi filtri.</div>'}</div>${liteCard()}`;
 }
 

@@ -124,12 +124,16 @@ svg.radar.grab{cursor:grabbing}
 .ws a,.srcs a{color:#7db8ff}
 .srcs{font-size:12px;color:var(--muted,#9fb0c3);margin-top:6px}
 .frames{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media(max-width:700px){.frames{grid-template-columns:repeat(2,1fr)}}
-.dcard{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:20px;align-items:start}
-@media(max-width:820px){.dcard{grid-template-columns:1fr}}
-.dcard .iss{border-left:3px solid var(--bad,#ff5c5c);padding:2px 0 2px 12px;margin:10px 0}
-.dcard .iss.mid{border-color:#e8c53a}.dcard .iss.ok{border-color:#2bd47d}
-.dcard .iss h4{margin:0 0 2px;font-size:15px}.dcard .iss p{margin:2px 0;font-size:14px}
-.dcard .iss .fix{color:var(--muted,#9fb0c3)}
+.dcard{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:20px;align-items:stretch}
+.dcard .dstick{position:sticky;top:var(--sh,170px)}
+.dcard .dhead{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.dcard .dhead h3{margin:0 0 4px}
+@media(max-width:820px){.dcard{grid-template-columns:1fr}.dcard .dstick{position:static}}
+.sbox{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0}
+.iss{--ic:var(--bad,#ff5c5c);background:var(--surface-2);border:1px solid var(--line);border-left:4px solid var(--ic);border-radius:10px;padding:12px 14px;margin:12px 0}
+.iss.mid{--ic:#e8c53a}.iss.ok{--ic:#2bd47d}
+.iss h4{margin:0 0 2px;font-size:15px}.iss p{margin:2px 0;font-size:14px}
+.iss .fix{color:var(--ink-2)}
 .leg{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;margin-top:6px}.leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .bars{display:flex;align-items:flex-end;gap:6px;height:150px;margin:8px 0 2px}
 .bars .col{flex:1;display:flex;align-items:flex-end;gap:2px;height:100%}
@@ -168,6 +172,15 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 .mstick{position:sticky;top:var(--hh,112px);z-index:15}
 .navbtn{padding:2px 10px;font-size:16px;margin-right:6px}
 .navbtn:disabled{opacity:.35;cursor:default}
+
+.hbar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:10px 0 12px}
+.hbar label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+.hbar .hcount{margin-left:auto;font-size:13px;color:var(--ink-3)}
+.hbar .btn.on{background:var(--accent);color:#fff}
+.kind{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+.kind.k-FACEIT{border-color:#f60;color:#f60}.kind.k-Premier{border-color:#3b82f6;color:#3b82f6}.kind.k-Competitiva{border-color:#8b5cf6;color:#8b5cf6}
+.hdate{font:inherit;padding:1px 4px}.nowrap{white-space:nowrap}
+.sbox .iss{background:var(--surface)}
 </style>
 <style>
 /* E-learning, in-app image viewer and match-analysis styles */
@@ -251,7 +264,14 @@ const RADARS = {"de_ancient": "data:image/webp;base64,UklGRvAoAABXRUJQVlA4IOQoAA
 /* Utilities: global state, formatting helpers, DOM shortcuts */
 let SID = DATA.steamid || null;
 const LITE = !!DATA.lite_view, PROFILE = DATA.profile || null;
-const cmpM = (a,b) => (a.played && b.played) ? a.played.localeCompare(b.played) : (a.patch-b.patch) || String(a.added||'').localeCompare(String(b.added||''));
+/* manual corrections (date and order of the matches), kept in this browser only */
+const OV = (() => { let o = {}; try{ o = JSON.parse(localStorage.getItem('csc_ov')||'{}') || {}; }catch(e){} o.dates = o.dates || {}; o.order = o.order || []; return o; })();
+const ovSave = () => { try{ localStorage.setItem('csc_ov', JSON.stringify(OV)); }catch(e){} };
+for(const m of DATA.matches) if(OV.dates[m.id]){ m.played0 = m.played0 || m.played || ''; m.played = OV.dates[m.id]; }
+const cmpAuto = (a,b) => (a.played && b.played) ? a.played.localeCompare(b.played) : (a.patch-b.patch) || String(a.added||'').localeCompare(String(b.added||''));
+const cmpM = (a,b) => { const ia = OV.order.indexOf(a.id), ib = OV.order.indexOf(b.id);
+  if(ia>=0 && ib>=0) return ia-ib; if(ia>=0) return -1; if(ib>=0) return 1; return cmpAuto(a,b); };
+const kindOf = m => m.kind || (/faceit/i.test(m.server||'') ? 'FACEIT' : /esea/i.test(m.server||'') ? 'ESEA' : /^valve/i.test(m.server||'') ? 'Valve' : 'Altro');
 const dShort = s => s ? s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4) : '';
 const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -268,7 +288,7 @@ const KCOL = {smoke:'#9aa7b8',flash:'#e8c53a',he:'#f08a3c',molotov:'#e5484d'};
 const state = {
   matches: DATA.matches.slice().sort(cmpM), lite: (DATA.lite||[]).slice(),
   tab: 'panoramica', mode: 'base',
-  fMap: 'all', fSide: 'all', fRes: 'all',
+  fMap: 'all', fSide: 'all', fRes: 'all', fKind: 'all', hFrom: '', hTo: '', hEdit: false,
   sel: null, selView: 'analisi', openRound: null,
   trend: 'rating', sortKey: 'idx', sortDir: -1,
   eCat: 'all', ePlace: null, eShown: 10,
@@ -282,6 +302,7 @@ const idxOf = m => state.matches.indexOf(m) + 1;
 function filtered(){
   return state.matches.filter(m =>
     (state.fMap==='all' || m.map===state.fMap) &&
+    (state.fKind==='all' || kindOf(m)===state.fKind) &&
     (state.fRes==='all' || m.result===state.fRes));
 }
 const sideOk = (side, row) => side==='all' || row.side===side;
@@ -476,9 +497,10 @@ function renderChrome(){
   if(LITE){ $('#who').textContent = (DATA.title||'')+' · '+state.matches.length+' partite recenti'; $('#filters').innerHTML=''; $('#tabs').style.display='none'; return; }
   $('#tabs').style.display = state.learn.on ? 'none' : '';
   $('#who').textContent = (state.matches[0] && me(state.matches[0]) ? me(state.matches[0]).name : '') + ' · ' + state.matches.length + (state.matches.length===1?' partita':' partite');
-  const maps = [...new Set(state.matches.map(m=>m.map))];
+  const maps = [...new Set(state.matches.map(m=>m.map))], kinds = [...new Set(state.matches.map(kindOf))];
   $('#filters').innerHTML = `
     <label>Mappa <select id="fMap"><option value="all">Tutte</option>${maps.map(m=>`<option value="${m}" ${state.fMap===m?'selected':''}>${mapName(m)}</option>`).join('')}</select></label>
+    ${kinds.length>1?`<label>Tipo <select id="fKind"><option value="all">Tutti</option>${kinds.map(k=>`<option value="${k}" ${state.fKind===k?'selected':''}>${k}</option>`).join('')}</select></label>`:''}
     <label>Lato <span class="seg" id="fSide">${['all','CT','T'].map(s=>`<button data-v="${s}" aria-pressed="${state.fSide===s}">${s==='all'?'Tutti':s}</button>`).join('')}</span></label>
     <label>Esito <span class="seg" id="fRes">${[['all','Tutti'],['W','Vinte'],['L','Perse']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.fRes===s}">${t}</button>`).join('')}</span></label>
     <label>Dati <span class="seg" id="mode">${[['base','Base'],['adv','Avanzati']].map(([s,t])=>`<button data-v="${s}" aria-pressed="${state.mode===s}">${t}</button>`).join('')}</span></label>
@@ -579,8 +601,8 @@ function viewPanoramica(ms){
 }
 
 function liteCard(){
-  if(!state.lite.length || state.fMap!=='all') return '';
-  const L = state.lite.filter(l => state.fRes==='all' || l.result===state.fRes);
+  if(!state.lite.length || state.fMap!=='all' || state.fKind!=='all') return '';
+  const L = state.lite.filter(l => (state.fRes==='all' || l.result===state.fRes) && (!state.hFrom || (l.played||'').slice(0,10) >= state.hFrom) && (!state.hTo || (l.played||'').slice(0,10) <= state.hTo));
   const rows = L.map(l => `<tr><td>${dShort(l.played)}</td><td><span class="pill ${l.result}">${l.score.us}-${l.score.them}</span></td><td>${l.k}</td><td>${l.a}</td><td>${l.d}</td><td>${f1(l.k/Math.max(1,l.d),2)}</td><td>${pc(l.k?l.hs/l.k:NaN)}</td><td>${l.mvp}</td><td>${f1(l.rating,2)}</td><td>${Math.round(l.duration/60)} min</td></tr>`).join('');
   return `<div class="card"><h2>Partite senza demo</h2><div class="sub">Dati dal tabellone salvato da CS2 (file .info): risultato, kill, assist, morti, headshot e MVP. Mancano mappa, ADR, smoke e posizioni, perché servono i dati della demo. Il rating è una stima senza ADR.</div>
     <div class="scroll"><table><thead><tr><th>Data</th><th>Score</th><th>K</th><th>A</th><th>D</th><th>K/D</th><th>HS%</th><th>MVP</th><th>Rating</th><th>Durata</th></tr></thead><tbody>${rows}</tbody></table></div>${L.length?'':'<div class="empty">Nessuna partita con questi filtri.</div>'}</div>`;
@@ -598,15 +620,32 @@ function viewPartite(ms){
     state.sel = null;
   }
   const side = state.fSide, adv = state.mode==='adv';
+  const inRange = m => { const d = (m.played||'').slice(0,10); return (!state.hFrom || (d && d >= state.hFrom)) && (!state.hTo || (d && d <= state.hTo)); };
+  const total = ms.length; ms = ms.filter(inRange);
   const rows = ms.map(m => { const a = agg([m], side), u = utilAgg([m], side);
-    return {m, played: m.played||'', idx: idxOf(m), map: mapName(m.map), res: m.score.us - m.score.them, rating: a.rating, kd: a.kd, k: a.k, d: a.d, a: a.a, adr: a.adr, hs: a.hsP, kast: a.kastP, ok: a.okP, tr: a.trP, cl: a.clW, ef: u.ef}; });
+    return {m, played: m.played||'', idx: idxOf(m), kind: kindOf(m), map: mapName(m.map), res: m.score.us - m.score.them, rating: a.rating, kd: a.kd, k: a.k, d: a.d, a: a.a, adr: a.adr, hs: a.hsP, kast: a.kastP, ok: a.okP, tr: a.trP, cl: a.clW, ef: u.ef}; });
   const key = state.sortKey, dir = state.sortDir;
   rows.sort((x,y) => (x[key] > y[key] ? 1 : x[key] < y[key] ? -1 : 0) * dir);
-  const cols = [['idx','#'],['played','Data'],['map','Mappa'],['res','Score'],['rating','Rating'],['k','K'],['a','A'],['d','D'],['kd','K/D'],['adr','ADR'],['hs','HS%'],['kast','KAST']];
+  const ed = state.hEdit;
+  const cols = [['idx','#'],['played','Data'],['kind','Tipo'],['map','Mappa'],['res','Score'],['rating','Rating'],['k','K'],['a','A'],['d','D'],['kd','K/D'],['adr','ADR'],['hs','HS%'],['kast','KAST']];
   if(adv) cols.push(['ok','Apertura'],['tr','Trade'],['cl','Clutch'],['ef','Flash']);
-  const head = cols.map(([k,t])=>`<th class="sortable" data-sort="${k}" ${key===k?`aria-sort="${dir>0?'ascending':'descending'}"`:''}>${t}${key===k?(dir>0?' ▲':' ▼'):''}</th>`).join('');
-  const body = rows.map(r => `<tr class="click" data-match="${r.m.id}"><td>${r.idx}</td><td>${dShort(r.played)}</td><td>${r.map}</td><td><span class="pill ${r.m.result}">${r.m.score.us}-${r.m.score.them}</span></td><td>${f1(r.rating,2)}</td><td>${r.k}</td><td>${r.a}</td><td>${r.d}</td><td>${f1(r.kd,2)}</td><td>${f1(r.adr,0)}</td><td>${pc(r.hs)}</td><td>${pc(r.kast)}</td>${adv?`<td>${pc(r.ok)}</td><td>${pc(r.tr)}</td><td>${r.cl}</td><td>${r.ef}</td>`:''}</tr>`).join('');
-  return `<div class="card"><h2>Storico partite</h2><div class="sub">Clicca una partita per scoreboard, round per round e mappa. Le più recenti sono in alto (clicca un'intestazione per cambiare l'ordine). Se non c'è il file .info accanto alla demo, la data non è disponibile e l'ordine è approssimativo.</div>
+  const head = cols.map(([k,t])=>!k?`<th>${t}</th>`:`<th class="sortable" data-sort="${k}" ${key===k?`aria-sort="${dir>0?'ascending':'descending'}"`:''}>${t}${key===k?(dir>0?' ▲':' ▼'):''}</th>`).join('');
+  if(ed) cols.push(['','Ordine']);
+  const body = rows.map(r => `<tr class="click" data-match="${r.m.id}"><td>${r.idx}</td><td>${ed?`<input type="date" class="hdate" data-dateid="${r.m.id}" value="${(r.played||'').slice(0,10)}">`:dShort(r.played)}</td><td><span class="kind k-${r.kind}">${r.kind}</span></td><td>${r.map}</td><td><span class="pill ${r.m.result}">${r.m.score.us}-${r.m.score.them}</span></td><td>${f1(r.rating,2)}</td><td>${r.k}</td><td>${r.a}</td><td>${r.d}</td><td>${f1(r.kd,2)}</td><td>${f1(r.adr,0)}</td><td>${pc(r.hs)}</td><td>${pc(r.kast)}</td>${adv?`<td>${pc(r.ok)}</td><td>${pc(r.tr)}</td><td>${r.cl}</td><td>${r.ef}</td>`:''}${ed?`<td class="nowrap"><button class="btn mv" data-mv="-1|${r.m.id}" title="Scambia con la partita precedente (numero più basso)">▲</button> <button class="btn mv" data-mv="1|${r.m.id}" title="Scambia con la partita successiva (numero più alto)">▼</button></td>`:''}</tr>`).join('');
+  const kinds = [...new Set(state.matches.map(kindOf))], maps = [...new Set(state.matches.map(m=>m.map))];
+  const filt = state.fKind!=='all' || state.fMap!=='all' || state.fRes!=='all' || state.hFrom || state.hTo;
+  const bar = `<div class="hbar">
+    <label>Tipo <select id="hKind"><option value="all">Tutti</option>${kinds.map(k=>`<option value="${k}" ${state.fKind===k?'selected':''}>${k}</option>`).join('')}</select></label>
+    <label>Mappa <select id="hMap"><option value="all">Tutte</option>${maps.map(m=>`<option value="${m}" ${state.fMap===m?'selected':''}>${mapName(m)}</option>`).join('')}</select></label>
+    <label>Esito <select id="hRes">${[['all','Tutti'],['W','Vinte'],['L','Perse']].map(([v,t])=>`<option value="${v}" ${state.fRes===v?'selected':''}>${t}</option>`).join('')}</select></label>
+    <label>Dal <input type="date" id="hFrom" value="${state.hFrom}"></label>
+    <label>Al <input type="date" id="hTo" value="${state.hTo}"></label>
+    ${filt?'<button class="btn" data-hreset="1">Azzera filtri</button>':''}
+    <span class="hcount">${rows.length} di ${state.matches.length} partite</span>
+    <button class="btn ${ed?'on':''}" data-hedit="1" aria-pressed="${ed}">${ed?'Fine modifica':'Modifica numero e data'}</button>
+  </div>${ed?`<div class="note">Modifica attiva: con ▲ e ▼ scambi una partita con la precedente o la successiva (cambia il numero #), e puoi correggere la data. Le modifiche restano in questo programma sul tuo computer. <button class="btn" data-hauto="1">Ripristina ordine automatico</button></div>`:''}`;
+  return `<div class="card"><h2>Storico partite</h2><div class="sub">Clicca una partita per scoreboard, round per round e mappa. Clicca un'intestazione per cambiare l'ordine della tabella. Il numero # segue la data; se manca il file .info la data non è disponibile e l'ordine è approssimativo: in quel caso usa "Modifica numero e data".</div>
+    ${bar}
     <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body || ''}</tbody></table></div>${rows.length?'':'<div class="empty">Nessuna partita con questi filtri.</div>'}</div>${liteCard()}`;
 }
 
@@ -1283,7 +1322,7 @@ function recentBlock(e){
   const f = fightOf(e), rc = f.rc;
   const body = rc.lines.length ? rc.lines.map(l=>`<p>• ${l.h}</p>`).join('') : `<p class="sub">${rc.full?'Nessun evento nei secondi attorno alla morte: il contatto è arrivato dopo una fase calma.':'Dettaglio non disponibile per questa partita (demo già cancellata prima di questa funzione): non ci sono tue azioni registrate negli ultimi 12 secondi.'}</p>`;
   const notes = f.notes.length ? `<p><b>Lettura:</b> ${f.notes.map(esc).join(' ')}</p>` : '';
-  return `<div class="iss ok" style="border-color:#9aa7b8"><h4>Cosa è successo prima e dopo (da −12 s a +6 s)</h4>${body}${notes}${!rc.full&&rc.lines.length?'<p class="sub">Qui compaiono solo le tue azioni: i dati di compagni e avversari esistono solo per le demo analizzate dopo questo aggiornamento.</p>':''}</div>`;
+  return `<div class="iss ok" style="--ic:#9aa7b8"><h4>Cosa è successo prima e dopo (da −12 s a +6 s)</h4>${body}${notes}${!rc.full&&rc.lines.length?'<p class="sub">Qui compaiono solo le tue azioni: i dati di compagni e avversari esistono solo per le demo analizzate dopo questo aggiornamento.</p>':''}</div>`;
 }
 function posAnalysis(e){
   const c = e.c; if(!c || !c.pos) return null;
@@ -1374,7 +1413,7 @@ function posSummary(L){
 }
 function posBlock(e){
   const R = posAnalysis(e); if(!R) return '';
-  return `<div class="iss ok" style="border-color:#c58bff"><h4>Peek e posizionamento</h4>${R.lines.map(l=>`<p>• ${l}</p>`).join('')}<p class="sub">${R.geo?'Linee di tiro e coperture calcolate con la geometria reale della mappa (solo muri e oggetti fissi, non smoke né porte).':'Linee di tiro e coperture reali richiedono la geometria della mappa (installa awpy, vedi LEGGIMI): qui le conclusioni usano solo le posizioni.'}</p></div>`;
+  return `<div class="iss ok" style="--ic:#c58bff"><h4>Peek e posizionamento</h4>${R.lines.map(l=>`<p>• ${l}</p>`).join('')}<p class="sub">${R.geo?'Linee di tiro e coperture calcolate con la geometria reale della mappa (solo muri e oggetti fissi, non smoke né porte).':'Linee di tiro e coperture reali richiedono la geometria della mappa (installa awpy, vedi LEGGIMI): qui le conclusioni usano solo le posizioni.'}</p></div>`;
 }
 </script>
 <script>
@@ -1490,7 +1529,7 @@ function utilCoach(ms, L){
   const spots = utilSpots(L);
   const spotHtml = spots.map(s=>{
     const adv = throwAdvice(s);
-    return `<div class="iss ok" style="border-color:#e8c53a"><h4>${mapName(s.map)} · ${s.side} · in ${esc(s.pl)}${s.kp!=='?'&&s.kp!==s.pl?` (di solito ti uccide chi è a ${esc(s.kp)})`:''} <span class="sub" style="display:inline">(${s.n} ${s.n===1?'morte':'morti'} con utility in tasca${s.fl?`, ${s.fl} con flash`:''}${s.sm?`, ${s.sm} con smoke`:''})</span></h4>${adv.map(a=>`<p><b>${esc(a.k)}:</b> ${esc(a.t)}</p>`).join('')}</div>`;
+    return `<div class="iss ok" style="--ic:#e8c53a"><h4>${mapName(s.map)} · ${s.side} · in ${esc(s.pl)}${s.kp!=='?'&&s.kp!==s.pl?` (di solito ti uccide chi è a ${esc(s.kp)})`:''} <span class="sub" style="display:inline">(${s.n} ${s.n===1?'morte':'morti'} con utility in tasca${s.fl?`, ${s.fl} con flash`:''}${s.sm?`, ${s.sm} con smoke`:''})</span></h4>${adv.map(a=>`<p><b>${esc(a.k)}:</b> ${esc(a.t)}</p>`).join('')}</div>`;
   }).join('');
   const flN = fl.length;
   const kpis = [
@@ -1504,12 +1543,12 @@ function utilCoach(ms, L){
   return `<div class="card"><h2>Flash e smoke: come lanciarle</h2>
     <div class="sub">Gli analisti guardano l'utility come un lavoro per un compagno (togliere una visuale, spostare un difensore, sostenere un duello, aprire la strada alla bomba) e non come granate sparse. Qui i tuoi numeri e, per i punti dove muori con utility in tasca, come usarla.</div>
     <div class="grid kpis" style="margin-top:10px">${kpis}</div>
-    ${tips.length?`<h3 style="margin:14px 0 4px">Cosa dicono i numeri</h3><ul style="margin:0;padding-left:20px">${tips.map(t=>`<li style="margin:4px 0">${esc(t)}</li>`).join('')}</ul>`:''}
+    ${tips.length?`<div class="sbox"><h3 style="margin:0 0 4px">Cosa dicono i numeri</h3><ul style="margin:0;padding-left:20px">${tips.map(t=>`<li style="margin:4px 0">${esc(t)}</li>`).join('')}</ul></div>`:''}
     ${!flN?`<p class="sub" style="margin-top:8px">I dettagli per ogni flash (nemici accecati, kill dopo la flash) e per ogni smoke si registrano solo per le demo nuove.</p>`:''}
-    <h3 style="margin:16px 0 2px">Dove muori con utility in tasca</h3>
+    <div class="sbox"><h3 style="margin:0 0 2px">Dove muori con utility in tasca</h3>
     <div class="sub">Raggruppo le morti per mappa, lato e posizione in cui sei morto. Le indicazioni sono principi ricavati da distanza, arma e numero di avversari; il punto esatto di lancio (lineup) va imparato con una mappa di pratica.</div>
-    ${spotHtml || '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}
-    <h3 style="margin:16px 0 2px">Tecnica di lancio</h3>
+    ${spotHtml || '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}</div>
+    <div class="sbox"><h3 style="margin:0 0 2px">Tecnica di lancio</h3>
     <ul style="margin:6px 0 0;padding-left:20px">
       <li style="margin:4px 0"><b>Tasto sinistro</b> = lancio lungo, <b>destro</b> = lancio corto basso, <b>entrambi</b> = distanza media. Correre in avanti aumenta la distanza, indietro la riduce; da fermo il lancio è più ripetibile.</li>
       <li style="margin:4px 0"><b>Jump throw</b>: tieni premuto il tasto sinistro, salta e rilascia mentre sali. Il bind a tasto unico non funziona più sui server ufficiali, si fa a mano.</li>
@@ -1518,19 +1557,19 @@ function utilCoach(ms, L){
       <li style="margin:4px 0"><b>Priorità di acquisto</b> a soldi limitati: smoke, una flash, molotov, seconda flash, HE.</li>
       <li style="margin:4px 0"><b>Allenamento</b>: in una mappa offline con <code>sv_cheats 1</code> usa <code>cl_grenadepreview 1</code> (traiettoria) e <code>sv_rethrow_last_grenade</code> (ripeti l'ultimo lancio). Ripeti ogni lineup 10 volte.</li>
     </ul>
-    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div>`;
+    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div></div>`;
 }
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;
   const bad = rev.some(r=>r.sev==='alta'), tag = e.traded ? 'tradata' : 'non tradata';
-  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div>${deathRadar(m,e)}
-      <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div>
-    <div><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
-      <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div>
+  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div class="dleft"><div class="dstick">${deathRadar(m,e)}
+      <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div></div>
+    <div class="dright"><div class="dhead"><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
+      <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div></div>
       ${recentBlock(e)}
       ${posBlock(e)}
       ${it.rev.map(r=>`<div class="iss ${SEV[r.sev]}"><h4>${esc(r.title)}</h4><p>${esc(r.why)}</p><p class="fix"><b>Cosa fare:</b> ${esc(r.fix)}</p></div>`).join('')}
-      <div class="iss ok" style="border-color:#4aa3ff"><h4>Tattica consigliata per un round simile</h4>${tactics(e,rev).map(t=>`<p>• ${esc(t)}</p>`).join('')}<p class="srcs">Fonti: ${srcLinks([...new Set(rev.flatMap(r=>SRC_BY[r.id]||[]))])||'vedi elenco in fondo alla pagina'}</p></div></div></div>${framesStrip(m,e)}</div>`;
+      <div class="iss ok" style="--ic:#4aa3ff"><h4>Tattica consigliata per un round simile</h4>${tactics(e,rev).map(t=>`<p>• ${esc(t)}</p>`).join('')}<p class="srcs">Fonti: ${srcLinks([...new Set(rev.flatMap(r=>SRC_BY[r.id]||[]))])||'vedi elenco in fondo alla pagina'}</p></div></div></div>${framesStrip(m,e)}</div>`;
 }
 function timingBars(ms){
   const BIN = 15, N = 8, kills = Array(N).fill(0), deaths = Array(N).fill(0);
@@ -5839,7 +5878,7 @@ function render(){
   initZoom();
   initReplay();
   navSync();
-  const hh = document.querySelector('header.top'); if(hh) document.documentElement.style.setProperty('--hh', hh.offsetHeight+'px');
+  const hh = document.querySelector('header.top'); if(hh) { document.documentElement.style.setProperty('--hh', hh.offsetHeight+'px'); const ms_ = document.querySelector('.mstick'); document.documentElement.style.setProperty('--sh', (hh.offsetHeight + (ms_ ? ms_.offsetHeight + 14 : 0) + 12)+'px'); }
   if(state.focusDeath){ const el = document.getElementById(state.focusDeath); state.focusDeath = null; if(el) el.scrollIntoView({block:'start'}); }
 }
 function setTab(t){ state.tab = t; state.sel = null; render(); window.scrollTo(0,0); }
@@ -5871,6 +5910,11 @@ document.addEventListener('click', e => {
   if(LITE && (t.dataset.gotoMap||t.dataset.match||t.id==='btnImp')) return;
   if(t.dataset.gotoMap){ state.mapSel = t.dataset.gotoMap; return setTab('mappe'); }
   if(t.dataset.map){ state.mapSel = t.dataset.map; return render(); }
+  if(t.dataset.hedit){ state.hEdit = !state.hEdit; return render(); }
+  if(t.dataset.hreset){ state.fKind='all'; state.fMap='all'; state.fRes='all'; state.hFrom=''; state.hTo=''; return render(); }
+  if(t.dataset.hauto){ OV.order = []; OV.dates = {}; for(const m of state.matches) if(m.played0!==undefined){ m.played = m.played0; } ovSave(); state.matches.sort(cmpM); return render(); }
+  if(t.dataset.mv){ const [d,id] = t.dataset.mv.split('|'), i = state.matches.findIndex(x=>x.id===id), j = i + (+d);
+    if(i>=0 && j>=0 && j<state.matches.length){ const a = state.matches; [a[i],a[j]] = [a[j],a[i]]; OV.order = a.map(x=>x.id); ovSave(); } return render(); }
   if(t.dataset.sort){ const k = t.dataset.sort; if(state.sortKey===k) state.sortDir*=-1; else {state.sortKey=k; state.sortDir=(k==='map'||k==='idx')?1:-1;} return render(); }
   if(t.dataset.match){ state.sel = t.dataset.match; state.selView='analisi'; state.openRound=null; return render(); }
   if(t.dataset.back){ state.sel = null; return render(); }
@@ -5882,7 +5926,15 @@ document.addEventListener('click', e => {
   if(t.id==='uref'){ state.uRef = t.checked; return render(); }
 });
 document.addEventListener('change', e => {
-  if(e.target.id==='fMap'){ state.fMap = e.target.value; state.sel=null; render(); }
+  const id = e.target.id;
+  if(id==='fMap' || id==='hMap'){ state.fMap = e.target.value; state.sel=null; render(); }
+  if(id==='fKind' || id==='hKind'){ state.fKind = e.target.value; state.sel=null; render(); }
+  if(id==='hRes'){ state.fRes = e.target.value; render(); }
+  if(id==='hFrom'){ state.hFrom = e.target.value; render(); }
+  if(id==='hTo'){ state.hTo = e.target.value; render(); }
+  if(e.target.dataset.dateid){ const m = state.matches.find(x=>x.id===e.target.dataset.dateid), v = e.target.value;
+    if(m){ m.played0 = m.played0 || m.played || ''; const t = (m.played||'').slice(10) || 'T12:00:00'; if(v){ m.played = v+t; OV.dates[m.id] = m.played; } else { m.played = m.played0; delete OV.dates[m.id]; }
+      ovSave(); render(); } }
   if(e.target.id==='imp') importFile(e.target.files[0]);
 });
 function importFile(f){

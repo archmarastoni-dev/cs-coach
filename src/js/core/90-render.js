@@ -76,7 +76,7 @@ function render(){
   initZoom();
   initReplay();
   navSync();
-  const hh = document.querySelector('header.top'); if(hh) document.documentElement.style.setProperty('--hh', hh.offsetHeight+'px');
+  const hh = document.querySelector('header.top'); if(hh) { document.documentElement.style.setProperty('--hh', hh.offsetHeight+'px'); const ms_ = document.querySelector('.mstick'); document.documentElement.style.setProperty('--sh', (hh.offsetHeight + (ms_ ? ms_.offsetHeight + 14 : 0) + 12)+'px'); }
   if(state.focusDeath){ const el = document.getElementById(state.focusDeath); state.focusDeath = null; if(el) el.scrollIntoView({block:'start'}); }
 }
 function setTab(t){ state.tab = t; state.sel = null; render(); window.scrollTo(0,0); }

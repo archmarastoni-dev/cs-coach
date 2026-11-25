@@ -270,6 +270,22 @@ def collect_buys(p, rounds, freeze_end, end_tick):
     return out
 
 
+def detect_kind(p, server):
+    """Match type: FACEIT / ESEA / Premier / Competitiva / Wingman (from the server name or the scoreboard rank type)."""
+    sv = (server or "").lower()
+    if "faceit" in sv:
+        return "FACEIT"
+    if "esea" in sv:
+        return "ESEA"
+    try:
+        d = p.parse_ticks(["comp_rank_type"], ticks=[20000])
+        vals = [int(v) for v in d["comp_rank_type"].tolist() if v == v]
+        t = max(set(vals), key=vals.count) if vals else None
+        return {11: "Premier", 12: "Competitiva", 7: "Wingman"}.get(t, "Altro")
+    except Exception:
+        return "Altro"
+
+
 def parse_demo(path, me_id):
     p = DemoParser(path)
     header = p.parse_header()
@@ -769,6 +785,7 @@ def parse_demo(path, me_id):
         "map": map_name,
         "patch": int(header.get("patch_version", 0) or 0),
         "server": header.get("server_name", ""),
+        "kind": detect_kind(p, header.get("server_name", "")),
         "score": {"us": me_wins, "them": me_loss, "ct_won": ct_w, "ct_rounds": ct_n, "t_won": t_w, "t_rounds": t_n},
         "result": result,
         "complete": bool(complete),

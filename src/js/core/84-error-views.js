@@ -52,7 +52,7 @@ function utilCoach(ms, L){
   const spots = utilSpots(L);
   const spotHtml = spots.map(s=>{
     const adv = throwAdvice(s);
-    return `<div class="iss ok" style="border-color:#e8c53a"><h4>${mapName(s.map)} · ${s.side} · in ${esc(s.pl)}${s.kp!=='?'&&s.kp!==s.pl?` (di solito ti uccide chi è a ${esc(s.kp)})`:''} <span class="sub" style="display:inline">(${s.n} ${s.n===1?'morte':'morti'} con utility in tasca${s.fl?`, ${s.fl} con flash`:''}${s.sm?`, ${s.sm} con smoke`:''})</span></h4>${adv.map(a=>`<p><b>${esc(a.k)}:</b> ${esc(a.t)}</p>`).join('')}</div>`;
+    return `<div class="iss ok" style="--ic:#e8c53a"><h4>${mapName(s.map)} · ${s.side} · in ${esc(s.pl)}${s.kp!=='?'&&s.kp!==s.pl?` (di solito ti uccide chi è a ${esc(s.kp)})`:''} <span class="sub" style="display:inline">(${s.n} ${s.n===1?'morte':'morti'} con utility in tasca${s.fl?`, ${s.fl} con flash`:''}${s.sm?`, ${s.sm} con smoke`:''})</span></h4>${adv.map(a=>`<p><b>${esc(a.k)}:</b> ${esc(a.t)}</p>`).join('')}</div>`;
   }).join('');
   const flN = fl.length;
   const kpis = [
@@ -66,12 +66,12 @@ function utilCoach(ms, L){
   return `<div class="card"><h2>Flash e smoke: come lanciarle</h2>
     <div class="sub">Gli analisti guardano l'utility come un lavoro per un compagno (togliere una visuale, spostare un difensore, sostenere un duello, aprire la strada alla bomba) e non come granate sparse. Qui i tuoi numeri e, per i punti dove muori con utility in tasca, come usarla.</div>
     <div class="grid kpis" style="margin-top:10px">${kpis}</div>
-    ${tips.length?`<h3 style="margin:14px 0 4px">Cosa dicono i numeri</h3><ul style="margin:0;padding-left:20px">${tips.map(t=>`<li style="margin:4px 0">${esc(t)}</li>`).join('')}</ul>`:''}
+    ${tips.length?`<div class="sbox"><h3 style="margin:0 0 4px">Cosa dicono i numeri</h3><ul style="margin:0;padding-left:20px">${tips.map(t=>`<li style="margin:4px 0">${esc(t)}</li>`).join('')}</ul></div>`:''}
     ${!flN?`<p class="sub" style="margin-top:8px">I dettagli per ogni flash (nemici accecati, kill dopo la flash) e per ogni smoke si registrano solo per le demo nuove.</p>`:''}
-    <h3 style="margin:16px 0 2px">Dove muori con utility in tasca</h3>
+    <div class="sbox"><h3 style="margin:0 0 2px">Dove muori con utility in tasca</h3>
     <div class="sub">Raggruppo le morti per mappa, lato e posizione in cui sei morto. Le indicazioni sono principi ricavati da distanza, arma e numero di avversari; il punto esatto di lancio (lineup) va imparato con una mappa di pratica.</div>
-    ${spotHtml || '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}
-    <h3 style="margin:16px 0 2px">Tecnica di lancio</h3>
+    ${spotHtml || '<p class="sub">Servono almeno qualche morte con utility ancora in tasca.</p>'}</div>
+    <div class="sbox"><h3 style="margin:0 0 2px">Tecnica di lancio</h3>
     <ul style="margin:6px 0 0;padding-left:20px">
       <li style="margin:4px 0"><b>Tasto sinistro</b> = lancio lungo, <b>destro</b> = lancio corto basso, <b>entrambi</b> = distanza media. Correre in avanti aumenta la distanza, indietro la riduce; da fermo il lancio è più ripetibile.</li>
       <li style="margin:4px 0"><b>Jump throw</b>: tieni premuto il tasto sinistro, salta e rilascia mentre sali. Il bind a tasto unico non funziona più sui server ufficiali, si fa a mano.</li>
@@ -80,19 +80,19 @@ function utilCoach(ms, L){
       <li style="margin:4px 0"><b>Priorità di acquisto</b> a soldi limitati: smoke, una flash, molotov, seconda flash, HE.</li>
       <li style="margin:4px 0"><b>Allenamento</b>: in una mappa offline con <code>sv_cheats 1</code> usa <code>cl_grenadepreview 1</code> (traiettoria) e <code>sv_rethrow_last_grenade</code> (ripeti l'ultimo lancio). Ripeti ogni lineup 10 volte.</li>
     </ul>
-    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div>`;
+    <p class="srcs">Fonti: ${srcLinks(['grenade','pop','gloss','proexec'])}</p></div></div>`;
 }
 function deathCard(it){
   const {m,e,rev} = it, c = e.c;
   const bad = rev.some(r=>r.sev==='alta'), tag = e.traded ? 'tradata' : 'non tradata';
-  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div>${deathRadar(m,e)}
-      <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div>
-    <div><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
-      <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div>
+  return `<div class="card" id="d-${m.id}-${e.r}-${e.tick}"><div class="dcard"><div class="dleft"><div class="dstick">${deathRadar(m,e)}
+      <div class="leg"><span><i style="background:#ffd34d"></i>Tu (✕) e la tua scia negli ultimi 4 s</span><span><i style="background:#4aa3ff"></i>Compagni</span><span><i style="background:#ff5c5c"></i>Avversari (bordo bianco = chi ti ha ucciso)</span></div></div></div>
+    <div class="dright"><div class="dhead"><h3>${mapName(m.map)} · round ${e.r} · ${e.t} s · ${e.side==='T'?'T':'CT'}</h3>
+      <div class="sub">${esc(c.pl||'?')} · ${pathTxt(c)} ucciso da ${esc(e.killer)} (${esc(wname(e.w))}${e.hs?', headshot':''}, ${f1(e.dist,0)} m) · morte ${tag} · ${c.ma} ${c.ma===1?'compagno':'compagni'} e ${c.fa} ${c.fa===1?'avversario':'avversari'} ancora vivi</div></div>
       ${recentBlock(e)}
       ${posBlock(e)}
       ${it.rev.map(r=>`<div class="iss ${SEV[r.sev]}"><h4>${esc(r.title)}</h4><p>${esc(r.why)}</p><p class="fix"><b>Cosa fare:</b> ${esc(r.fix)}</p></div>`).join('')}
-      <div class="iss ok" style="border-color:#4aa3ff"><h4>Tattica consigliata per un round simile</h4>${tactics(e,rev).map(t=>`<p>• ${esc(t)}</p>`).join('')}<p class="srcs">Fonti: ${srcLinks([...new Set(rev.flatMap(r=>SRC_BY[r.id]||[]))])||'vedi elenco in fondo alla pagina'}</p></div></div></div>${framesStrip(m,e)}</div>`;
+      <div class="iss ok" style="--ic:#4aa3ff"><h4>Tattica consigliata per un round simile</h4>${tactics(e,rev).map(t=>`<p>• ${esc(t)}</p>`).join('')}<p class="srcs">Fonti: ${srcLinks([...new Set(rev.flatMap(r=>SRC_BY[r.id]||[]))])||'vedi elenco in fondo alla pagina'}</p></div></div></div>${framesStrip(m,e)}</div>`;
 }
 function timingBars(ms){
   const BIN = 15, N = 8, kills = Array(N).fill(0), deaths = Array(N).fill(0);
