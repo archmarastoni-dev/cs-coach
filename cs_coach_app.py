@@ -10,6 +10,10 @@ from pathlib import Path
 
 FROZEN = getattr(sys, "frozen", False)
 BUNDLE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))      # bundled files (template, parser)
+try:
+    SCRIPT = str(Path(__file__).resolve())
+except NameError:
+    SCRIPT = str(Path(sys.argv[0]).resolve()) if sys.argv and sys.argv[0] else ""
 APPDIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 
 
@@ -138,11 +142,20 @@ def update(cfg):
     STATE["busy"] = True
     try:
         say("Controllo le demo…")
-        cmd = [sys.executable] + ([] if FROZEN else [str(Path(__file__).resolve())]) + ["--update"]
-        flags = (0x00004000 | 0x08000000) if os.name == "nt" else 0      # BELOW_NORMAL_PRIORITY_CLASS | CREATE_NO_WINDOW
-        r = subprocess.run(cmd, creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        n = 1 if r.returncode == 10 else 0
-        say("Pronto: ci sono partite nuove" if n else ("Errore: guarda il registro attività" if r.returncode else "Pronto"))
+        n = None
+        try:
+            cmd = [sys.executable] + ([] if FROZEN else [SCRIPT]) + ["--update"]
+            flags = (0x00004000 | 0x08000000) if os.name == "nt" else 0      # BELOW_NORMAL_PRIORITY_CLASS | CREATE_NO_WINDOW
+            r = subprocess.run(cmd, creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if r.returncode in (0, 10):
+                n = 1 if r.returncode == 10 else 0
+            else:
+                print("child process failed, code", r.returncode, "- working in this process instead")
+        except Exception as e:
+            print("cannot start the child process (" + repr(e) + ") - working in this process instead")
+        if n is None:                                   # fallback: same work inside the app
+            n = 1 if do_update(cfg) else 0
+        say("Pronto: ci sono partite nuove" if n else "Pronto")
         return n
     except Exception as e:
         print("ERROR", repr(e))
@@ -154,6 +167,9 @@ def update(cfg):
 
 def show_dashboard():
     w = STATE["win"]
+    if not HTML.exists():
+        say("Dashboard non trovata: guarda il registro attività (menu CS Coach)")
+        return
     STATE["splash"] = False
     w.load_url(HTML.as_uri() + "?app=1")        # "?app=1": the dashboard then manages its own back/forward history
 
