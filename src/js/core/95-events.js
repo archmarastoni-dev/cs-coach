@@ -48,7 +48,7 @@ document.addEventListener('change', e => {
   if(id==='hTo'){ state.hTo = e.target.value; render(); }
   if(e.target.dataset.dateid){ const m = state.matches.find(x=>x.id===e.target.dataset.dateid), v = e.target.value;
     if(m){ m.played0 = m.played0 || m.played || ''; const t = (m.played||'').slice(10) || 'T12:00:00'; if(v){ m.played = v+t; OV.dates[m.id] = m.played; } else { m.played = m.played0; delete OV.dates[m.id]; }
-      ovSave(); render(); } }
+      OV.order = []; state.matches.sort(cmpM); ovSave(); render(); } }
   if(e.target.id==='imp') importFile(e.target.files[0]);
 });
 function importFile(f){
