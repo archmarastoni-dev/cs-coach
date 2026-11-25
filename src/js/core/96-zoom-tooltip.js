@@ -54,22 +54,44 @@ function setupMap(svg, key, opts={}){
   const h = document.createElement('div'); h.className = 'zhint'; h.textContent = 'Rotellina: zoom · trascina: sposta · clic su un elemento: evidenzia · doppio clic: reset'; wrap.appendChild(h);
   set();
 }
+function fsCaption(svg, card){
+  const head = card && card.querySelector('.dhead,.dv-t'), fig = svg.closest('figure');
+  const what = fig ? (fig.querySelector('figcaption') ? 'Fotogramma: ' + fig.querySelector('figcaption').textContent.trim() : 'Fotogramma') : (card && card.querySelector('.dcard') || card && card.querySelector('.dv-main') ? 'Posizioni al momento della morte' : '');
+  const inDeath = card && (card.querySelector('.dcard') || card.querySelector('.dv-main'));
+  return '<b>' + (head ? esc(head.innerText.split('\n')[0]) : '') + '</b>' + (what ? ' · ' + esc(what) : '') +
+    (inDeath ? '<br><span>Pallino = giocatore vivo · ✕ = morto · giallo = tu, blu = compagni, rosso = avversari · bordo bianco = chi ti ha ucciso · coni = dove guardavano · cerchi = smoke/flash/HE/molotov</span>' : '');
+}
 function openFullscreen(src, view){
   closeFullscreen();
+  const card = src.closest('.dv-box, .card');
+  const grp = card && (card.querySelector('.dcard') || card.querySelector('.dv-main')) ? [...card.querySelectorAll('svg.radar')].filter(x=>!x.classList.contains('rp-radar')) : [src];
+  const items = grp.map(x => ({svg:x, view: x===src ? view : x.getAttribute('viewBox').trim().split(/\s+/).map(Number), cap: fsCaption(x, card)}));
+  let i = Math.max(0, grp.indexOf(src));
   const el = document.createElement('div'); el.id = 'fsmap';
   const box = document.createElement('div'); box.className = 'fs-box zwrap';
-  const svg = src.cloneNode(true);
-  svg.setAttribute('viewBox', view.map(n=>+n.toFixed(2)).join(' '));
-  svg.querySelectorAll('.zctl,.zhint,.zsel').forEach(e => e.remove());
-  box.appendChild(svg); el.appendChild(box);
+  const cap = document.createElement('div'); cap.className = 'fs-cap';
+  el.appendChild(box); el.appendChild(cap);
   const x = document.createElement('button'); x.className = 'fs-x'; x.type = 'button'; x.setAttribute('aria-label','Chiudi'); x.textContent = '✕'; x.onclick = closeFullscreen; el.appendChild(x);
+  const show = () => {
+    const it = items[i]; box.innerHTML = '';
+    const svg = it.svg.cloneNode(true);
+    svg.setAttribute('viewBox', it.view.map(n=>+n.toFixed(2)).join(' '));
+    svg.querySelectorAll('.zctl,.zhint,.zsel').forEach(e => e.remove());
+    box.appendChild(svg); delete ZS['fs']; setupMap(svg, 'fs', {fs:true});
+    cap.innerHTML = it.cap + (items.length>1 ? `<div class="fs-n">${i+1} di ${items.length} · frecce ← → per scorrere</div>` : '');
+  };
+  if(items.length > 1){
+    for(const [d, t] of [[-1,'‹'],[1,'›']]){
+      const b = document.createElement('button'); b.type='button'; b.className = 'fs-nav ' + (d<0?'fs-prev':'fs-next'); b.textContent = t; b.setAttribute('aria-label', d<0?'Precedente':'Successiva');
+      b.onclick = ev => { ev.stopPropagation(); i = (i + d + items.length) % items.length; show(); }; el.appendChild(b);
+    }
+    el.fsGo = d => { i = (i + d + items.length) % items.length; show(); };
+  }
   el.addEventListener('click', e => { if(e.target === el) closeFullscreen(); });
-  document.body.appendChild(el);
-  delete ZS['fs'];
-  setupMap(svg, 'fs', {fs:true});
+  document.body.appendChild(el); show();
 }
 function closeFullscreen(){ const e = document.getElementById('fsmap'); if(e) e.remove(); }
-document.addEventListener('keydown', e => { if(e.key==='Escape') closeFullscreen(); });
+document.addEventListener('keydown', e => { const f = document.getElementById('fsmap'); if(!f) return; if(e.key==='Escape') closeFullscreen(); else if(f.fsGo && e.key==='ArrowRight'){ e.stopPropagation(); f.fsGo(1); } else if(f.fsGo && e.key==='ArrowLeft'){ e.stopPropagation(); f.fsGo(-1); } }, true);
 function initZoom(){
   document.querySelectorAll('svg.radar').forEach((svg, idx) => {
     if(svg.parentNode.classList.contains('zwrap') || svg.classList.contains('rp-radar')) return;
