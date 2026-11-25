@@ -42,7 +42,7 @@ import cs_coach                                     # noqa: E402
 
 cs_coach.HERE = BUNDLE                              # bundled dashboard_template.html
 INTERVAL = 120
-STATE = {"win": None, "status": "", "busy": False, "splash": True}
+STATE = {"win": None, "status": "", "busy": False, "splash": True, "quit": False, "child": None, "news": 0}
 
 SPLASH = """<!doctype html><meta charset=utf-8><body style="margin:0;display:grid;place-items:center;height:100vh;
 background:#0f1720;color:#e6edf3;font:16px Segoe UI,system-ui,sans-serif"><div style="text-align:center;max-width:560px;padding:20px">
@@ -149,11 +149,17 @@ def update(cfg):
         try:
             cmd = [sys.executable] + ([] if FROZEN else [SCRIPT]) + ["--update"]
             flags = (0x00004000 | 0x08000000) if os.name == "nt" else 0      # BELOW_NORMAL_PRIORITY_CLASS | CREATE_NO_WINDOW
-            r = subprocess.run(cmd, creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if r.returncode in (0, 10):
-                n = 1 if r.returncode == 10 else 0
+            pr = STATE["child"] = subprocess.Popen(cmd, creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            while pr.poll() is None:
+                if STATE["quit"]:
+                    pr.terminate()
+                    return 0
+                time.sleep(0.4)
+            STATE["child"] = None
+            if pr.returncode in (0, 10):
+                n = 1 if pr.returncode == 10 else 0
             else:
-                print("child process failed, code", r.returncode, "- working in this process instead")
+                print("child process failed, code", pr.returncode, "- working in this process instead")
         except Exception as e:
             print("cannot start the child process (" + repr(e) + ") - working in this process instead")
         if n is None:                                   # fallback: same work inside the app
@@ -234,15 +240,15 @@ def show_dashboard():
         print("dashboard:", HTML, HTML.stat().st_size, "byte, leggibile:", os.access(str(HTML), os.R_OK))
     except OSError as e:
         print("dashboard stat error", repr(e))
-    w.load_url(HTML.as_uri() + "?app=1")        # "?app=1": the dashboard then manages its own back/forward history
-    if page_ok(w):
-        print("dashboard caricata (file)")
-        return
-    print("file:// non caricato: provo con il server locale")
-    base = serve_local()
+    base = serve_local()                        # http://127.0.0.1 first: loading the file directly fails on this PC (ERR_FILE_NOT_FOUND)
     if base:
-        w.load_url(base + "?app=1")
-        print("dashboard caricata (server locale)" if page_ok(w) else "ERRORE: dashboard non caricata nemmeno dal server locale")
+        w.load_url(base + "?app=1")             # "?app=1": the dashboard then manages its own back/forward history
+        if page_ok(w):
+            print("dashboard caricata (server locale)")
+            return
+        print("server locale non caricato: provo con il file")
+    w.load_url(HTML.as_uri() + "?app=1")
+    print("dashboard caricata (file)" if page_ok(w) else "ERRORE: dashboard non caricata")
 
 
 def set_icon():
@@ -270,8 +276,11 @@ def _worker(cfg):
         show_dashboard()
     else:
         say("Dashboard non creata: guarda cs_coach.log")
-    while True:
-        time.sleep(INTERVAL)
+    while not STATE["quit"]:
+        for _ in range(INTERVAL * 2):
+            if STATE["quit"]:
+                return
+            time.sleep(0.5)
         if update(cfg):
             show_dashboard()
 
@@ -303,12 +312,29 @@ def main():
         return
     cfg = load_cfg() or first_run()
     cfg.setdefault("folders", [])
-    win = webview.create_window("CS Coach", html=SPLASH, width=1320, height=860, min_size=(900, 600))
+    class Api:
+        """Called from the dashboard button "Cerca demo"."""
+
+        def refresh(self):
+            if STATE["busy"]:
+                return False
+
+            def job():
+                STATE["news"] = update(cfg)
+                if STATE["news"]:
+                    show_dashboard()
+            threading.Thread(target=job, daemon=True).start()
+            return True
+
+        def status(self):
+            return {"busy": STATE["busy"], "text": STATE["status"], "news": STATE["news"]}
+
+    win = webview.create_window("CS Coach", html=SPLASH, width=1320, height=860, min_size=(900, 600), js_api=Api())
     STATE["win"] = win
     win.events.shown += set_icon
 
     def refresh_now():
-        threading.Thread(target=lambda: (update(cfg) , show_dashboard()), daemon=True).start()
+        threading.Thread(target=lambda: Api().refresh(), daemon=True).start()
 
     def open_cfg():
         try:
@@ -327,6 +353,18 @@ def main():
                               MenuAction("Impostazioni (cartella demo, SteamID)", open_cfg),
                               MenuAction("Registro attività", open_log)])]
     webview.start(lambda: worker(cfg), menu=menu)
+    # window closed: stop everything. Without this the background loop keeps the process (and the lock) alive.
+    STATE["quit"] = True
+    try:
+        if STATE["child"] is not None:
+            STATE["child"].terminate()
+    except Exception:
+        pass
+    print("chiusa: esco")
+    try:
+        sys.stdout.flush()
+    finally:
+        os._exit(0)
 
 
 if __name__ == "__main__":

@@ -243,7 +243,7 @@ svg.radar.has-sel .it.is-sel{opacity:1;filter:drop-shadow(0 0 5px #fff)}
 <body>
 <header class="top"><div class="wrap">
   <div class="top-row">
-    <div class="brand"><button type="button" class="btn navbtn" id="navBack" title="Indietro" aria-label="Indietro">←</button><button type="button" class="btn navbtn" id="navFwd" title="Avanti" aria-label="Avanti">→</button><h1>CS Coach</h1><span id="who"></span></div>
+    <div class="brand"><button type="button" class="btn navbtn" id="navBack" title="Indietro" aria-label="Indietro">←</button><button type="button" class="btn navbtn" id="navFwd" title="Avanti" aria-label="Avanti">→</button><h1>CS Coach</h1><span id="who"></span><button type="button" class="btn" id="scanBtn" hidden title="Cerca e leggi subito le demo nuove">⟳ Cerca demo</button></div>
     <div class="filters" id="filters"></div>
   </div>
   <nav class="tabs" id="tabs" role="tablist"></nav>
@@ -5968,6 +5968,28 @@ function alert_(msg){
   const n = document.createElement('div'); n.className='note'; n.textContent = msg; n.setAttribute('role','status');
   $('#main').prepend(n); setTimeout(()=>n.remove(), 6000);
 }
+
+// "Cerca demo" button: only inside the desktop app (pywebview exposes the api); forces a scan for new demos now
+(() => {
+  const b = document.getElementById('scanBtn'); if(!b) return;
+  const api = () => window.pywebview && window.pywebview.api && window.pywebview.api.refresh ? window.pywebview.api : null;
+  const show = () => { if(api()) b.hidden = false; };
+  window.addEventListener('pywebviewready', show); show(); setTimeout(show, 1500); setTimeout(show, 4000);
+  b.addEventListener('click', async () => {
+    const a = api(); if(!a || b.disabled) return;
+    const label = '⟳ Cerca demo'; b.disabled = true; b.textContent = 'Cerco…';
+    try{
+      await a.refresh();
+      for(let i = 0; i < 900; i++){
+        await new Promise(r => setTimeout(r, 1000));
+        const s = await a.status();
+        if(!s.busy){ b.textContent = s.news ? 'Demo nuove trovate' : 'Nessuna demo nuova'; break; }
+        b.textContent = String(s.text || 'Cerco…').slice(0, 30);
+      }
+    }catch(e){ b.textContent = 'Errore'; }
+    setTimeout(() => { b.textContent = label; b.disabled = false; }, 3000);
+  });
+})();
 </script>
 <script>
 /* map zoom, pan, click-to-highlight and full-screen view */

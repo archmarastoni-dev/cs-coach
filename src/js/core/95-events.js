@@ -77,3 +77,24 @@ function alert_(msg){
   $('#main').prepend(n); setTimeout(()=>n.remove(), 6000);
 }
 
+// "Cerca demo" button: only inside the desktop app (pywebview exposes the api); forces a scan for new demos now
+(() => {
+  const b = document.getElementById('scanBtn'); if(!b) return;
+  const api = () => window.pywebview && window.pywebview.api && window.pywebview.api.refresh ? window.pywebview.api : null;
+  const show = () => { if(api()) b.hidden = false; };
+  window.addEventListener('pywebviewready', show); show(); setTimeout(show, 1500); setTimeout(show, 4000);
+  b.addEventListener('click', async () => {
+    const a = api(); if(!a || b.disabled) return;
+    const label = '⟳ Cerca demo'; b.disabled = true; b.textContent = 'Cerco…';
+    try{
+      await a.refresh();
+      for(let i = 0; i < 900; i++){
+        await new Promise(r => setTimeout(r, 1000));
+        const s = await a.status();
+        if(!s.busy){ b.textContent = s.news ? 'Demo nuove trovate' : 'Nessuna demo nuova'; break; }
+        b.textContent = String(s.text || 'Cerco…').slice(0, 30);
+      }
+    }catch(e){ b.textContent = 'Errore'; }
+    setTimeout(() => { b.textContent = label; b.disabled = false; }, 3000);
+  });
+})();
