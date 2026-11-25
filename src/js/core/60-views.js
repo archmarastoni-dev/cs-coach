@@ -52,11 +52,13 @@ function trendSVG(ms, side, key){
     let acc = 0; const ma = vs.map((v,i)=>{ acc += v; return i < N-1 ? null : acc/(i+1); });
     const ix = ma.map((v,i)=>v==null?null:i).filter(i=>i!=null), i0 = ix[0], i1 = ix[ix.length-1];
     maSvg = `<path d="${ix.map((i,j)=>`${j?'L':'M'}${X(i)} ${Y(ma[i])}`).join('')}" fill="none" stroke="var(--warn)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${X(i1)}" cy="${Y(ma[i1])}" r="6" fill="var(--warn)" stroke="var(--surface)" stroke-width="2"/>`;
+      ${ix.map(i=>`<circle cx="${X(i)}" cy="${Y(ma[i])}" r="${i===i1?6:3.2}" fill="var(--warn)" stroke="var(--surface)" stroke-width="${i===i1?2:1.2}" pointer-events="none"/><circle cx="${X(i)}" cy="${Y(ma[i])}" r="7" fill="transparent" ${tipAttr('Dopo la partita #'+idxOf(pts[i].m)+': media da inizio '+ma[i].toFixed(dec)+' (media totale '+avg.toFixed(dec)+')')}/>`).join('')}`;
     const rec = vs.slice(-RN).reduce((a,b)=>a+b,0)/RN, d = rec - avg, flat = Math.abs(d) < Math.pow(10,-dec)/2;
     chip = `<div class="tchip"><span class="chip ${flat?'flat':d>0?'up':'down'}">${flat?'▬ in linea con la media':(d>0?'▲ ':'▼ ')+Math.abs(d).toFixed(dec)+(d>0?' sopra':' sotto')+' la media totale'}</span><span class="sub" style="margin-left:8px">ultime ${RN} partite: ${rec.toFixed(dec)} · media totale: ${avg.toFixed(dec)}</span></div>`;
   }
-  const dots = pts.map((p,i)=>{ const win = p.m.result==='W', tip = tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+p.m.score.us+'-'+p.m.score.them+' · '+lab+' '+p.v.toFixed(dec));
+  let cumAcc = 0; const cum = vs.map((v,i)=>{ cumAcc += v; return cumAcc/(i+1); });
+  const hov = i => ' · media da inizio a qui '+cum[i].toFixed(dec)+' · media totale '+avg.toFixed(dec);
+  const dots = pts.map((p,i)=>{ const win = p.m.result==='W', tip = tipAttr('#'+idxOf(p.m)+' '+mapName(p.m.map)+' · '+(win?'vinta ':'persa ')+p.m.score.us+'-'+p.m.score.them+' · '+lab+' di questa partita: '+p.v.toFixed(dec)+hov(i));
     return (win ? `<circle cx="${X(i)}" cy="${Y(p.v)}" r="5.5" fill="var(--good)" ${tip}/>` : `<circle cx="${X(i)}" cy="${Y(p.v)}" r="4.5" fill="var(--surface)" stroke="var(--bad)" stroke-width="2.2" ${tip}/>`)
     + (i%step===0||i===pts.length-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle" fill="var(--ink-3)" font-size="11.5">#${idxOf(p.m)}</text>`:''); }).join('');
   return `${chip}<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Andamento ${lab}">${g}
