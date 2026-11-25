@@ -169,6 +169,56 @@ def update(cfg):
         STATE["busy"] = False
 
 
+PORT = 47932
+_SRV = None
+
+
+def serve_local():
+    """Fallback: serve the dashboard over http://127.0.0.1 (no file:// access involved). Returns the base url or ''."""
+    global _SRV
+    if _SRV is None:
+        import http.server
+        import socketserver
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                try:
+                    data = HTML.read_bytes()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    self.wfile.write(data)
+                except Exception as e:
+                    self.send_error(500, str(e)[:80])
+
+            def log_message(self, *a):
+                pass
+
+        class S(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+        try:
+            _SRV = S(("127.0.0.1", PORT), H)
+            threading.Thread(target=_SRV.serve_forever, daemon=True).start()
+        except OSError as e:
+            print("serve_local: porta non disponibile", repr(e))
+            return ""
+    return "http://127.0.0.1:%d/cs_coach.html" % PORT
+
+
+def page_ok(w):
+    """True if the window really shows the dashboard (and not a browser error page)."""
+    for _ in range(24):
+        time.sleep(0.5)
+        try:
+            if w.evaluate_js("typeof APP_MODE !== 'undefined' && !!document.body") is True:
+                return True
+        except Exception:
+            pass
+    return False
+
+
 def show_dashboard():
     w = STATE["win"]
     for _ in range(20):                                 # the file may be replaced a moment ago: wait for it
@@ -180,8 +230,19 @@ def show_dashboard():
         print("show_dashboard: file mancante", HTML)
         return
     STATE["splash"] = False
-    print("carico", HTML.as_uri())
+    try:
+        print("dashboard:", HTML, HTML.stat().st_size, "byte, leggibile:", os.access(str(HTML), os.R_OK))
+    except OSError as e:
+        print("dashboard stat error", repr(e))
     w.load_url(HTML.as_uri() + "?app=1")        # "?app=1": the dashboard then manages its own back/forward history
+    if page_ok(w):
+        print("dashboard caricata (file)")
+        return
+    print("file:// non caricato: provo con il server locale")
+    base = serve_local()
+    if base:
+        w.load_url(base + "?app=1")
+        print("dashboard caricata (server locale)" if page_ok(w) else "ERRORE: dashboard non caricata nemmeno dal server locale")
 
 
 def set_icon():
