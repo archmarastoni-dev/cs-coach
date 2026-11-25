@@ -136,8 +136,7 @@ TRAP_BACK = "if(!window.__csTrap){window.__csTrap=1;history.pushState(null,'',lo
 def show_dashboard():
     w = STATE["win"]
     STATE["splash"] = False
-    # replace (not add to) the history entry, so there is no splash page to go back to
-    w.evaluate_js("location.replace(" + json.dumps(HTML.as_uri()) + ")")
+    w.load_url(HTML.as_uri())          # on_loaded() then blocks "back" so the splash page can not be reached again
 
 
 def on_loaded():
