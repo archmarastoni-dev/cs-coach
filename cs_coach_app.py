@@ -252,13 +252,30 @@ def show_dashboard():
 
 
 def set_icon():
-    """Window / taskbar icon (Windows): the icon file is bundled next to the program."""
+    """Window and taskbar icon (Windows). The taskbar groups windows by the "AppUserModelID" of the process: without
+    our own, it shows the icon of pythonw.exe. The icon file is bundled next to the program."""
     ico = BUNDLE / "icona_statistiche.ico"
     try:
         import System.Drawing as SD                      # provided by pythonnet, which pywebview uses on Windows
         STATE["win"].native.Icon = SD.Icon(str(ico))
     except Exception as e:
         print("icon not set:", repr(e))
+    try:                                                 # also force the big (taskbar) and small (title bar) icon on the window handle
+        import ctypes
+        u = ctypes.windll.user32
+        u.LoadImageW.restype = ctypes.c_void_p
+        u.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
+        hwnd = u.FindWindowW(None, "CS Coach")
+        if hwnd:
+            for kind, size in ((1, 48), (0, 16)):        # WM_SETICON: ICON_BIG = 1, ICON_SMALL = 0
+                h = u.LoadImageW(None, str(ico), 1, size, size, 0x10)       # IMAGE_ICON, LR_LOADFROMFILE
+                if h:
+                    u.SendMessageW(hwnd, 0x80, kind, h)
+            print("icona applicata alla finestra")
+        else:
+            print("icon: finestra non trovata")
+    except Exception as e:
+        print("icon (hwnd) not set:", repr(e))
 
 
 def worker(cfg):
@@ -310,6 +327,11 @@ def main():
         except Exception:
             pass
         return
+    try:                                                # own taskbar identity, so the taskbar uses our icon instead of the Python one
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("CSCoach.App.1")
+    except Exception:
+        pass
     cfg = load_cfg() or first_run()
     cfg.setdefault("folders", [])
     class Api:
